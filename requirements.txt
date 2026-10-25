@@ -1,0 +1,12 @@
+fastapi>=0.162
+uvicorn>=0.54
+openai>=3.37
+pypinyin>=0.55
+trafilatura>=2.3
+faster-whisper>=1.2
+numpy
+PySide6>=6.8
+edge-tts>=7
+praat-parselmouth>=0.4
+hanzipy>=1.0
+opencc>=1.1

@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>猫猫读 MaoMao Read</title>
+<style>
+  :root {
+    --bg: #fbf3e8; --card: #fffdf9; --ink: #3d2f28; --muted: #8b7b70; --line: #f0e0cc;
+    --accent: #e8823a; --accent-dark: #c4651f; --accent-soft: #fde9d6; --pink: #f3a6b5; --pink-soft: #fde8ec;
+    --tone: #a86a00; --tone-bg: #fff0c9; --miss: #c8384f; --miss-bg: #fde1e6; --skip: #8b7b70; --skip-bg: #eee6dc;
+    --good: #3f8a5a; --radius: 20px;
+    --paw: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cg fill='%23e8823a' fill-opacity='.06'%3E%3Cellipse cx='45' cy='52' rx='11' ry='9'/%3E%3Ccircle cx='33' cy='38' r='4.5'/%3E%3Ccircle cx='41' cy='32' r='4.5'/%3E%3Ccircle cx='50' cy='32' r='4.5'/%3E%3Ccircle cx='58' cy='38' r='4.5'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Nunito", -apple-system, "PingFang SC", "Noto Sans SC", "Segoe UI", sans-serif; background: var(--bg) var(--paw); color: var(--ink); }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 22px; background: var(--card); border-bottom: 2px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  .logo { width: 46px; height: 46px; flex: none; }
+  .brand h1 { margin: 0; font-size: 22px; letter-spacing: .01em; } .brand h1 span { color: var(--accent); }
+  .brand p { margin: 0; color: var(--muted); font-size: 13px; }
+  main { max-width: 900px; margin: 0 auto; padding: 20px 20px 70px; }
+  .card { background: var(--card); border: 2px solid var(--line); border-radius: var(--radius); padding: 20px 22px; margin-top: 18px; box-shadow: 0 4px 0 var(--line); }
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--accent-dark); display: flex; align-items: center; gap: 8px; }
+  .card h3 { margin: 16px 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  button, select, input, textarea { font: inherit; color: var(--ink); }
+  button, select { font-size: 14px; border-radius: 999px; border: 2px solid var(--line); background: var(--card); padding: 8px 16px; cursor: pointer; transition: transform .08s, background .15s; }
+  button:hover:not(:disabled) { background: var(--accent-soft); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; box-shadow: 0 3px 0 var(--accent-dark); }
+  button.primary:hover:not(:disabled) { background: var(--accent-dark); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.rec { background: var(--miss); border-color: var(--miss); color: #fff; box-shadow: none; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(200,56,79,.15); } }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .hidden { display: none !important; }
+
+  /* Start: two ways in */
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tab { text-align: left; border-radius: 16px; padding: 14px 16px; border: 2px solid var(--line); background: var(--card); }
+  .tab b { display: block; font-size: 16px; } .tab span { font-size: 13px; color: var(--muted); }
+  .tab.on { border-color: var(--accent); background: var(--accent-soft); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 6px 14px; font-size: 14px; }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .field { width: 100%; padding: 10px 14px; border: 2px solid var(--line); border-radius: 14px; background: #fff; outline: none; font-size: 15px; }
+  .field:focus { border-color: var(--accent); }
+  textarea.field { min-height: 130px; font-size: 20px; line-height: 1.6; resize: vertical; }
+  .results { display: grid; gap: 10px; margin-top: 14px; }
+  .result { text-align: left; border-radius: 16px; padding: 12px 14px; display: block; width: 100%; }
+  .result b { font-size: 17px; display: block; } .result small { color: var(--muted); }
+  .pill { display: inline-block; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 9px; background: var(--ink); color: #fff; margin-right: 6px; vertical-align: 1px; }
+  .pill.soft { background: var(--accent-soft); color: var(--accent-dark); }
+
+  /* Reading */
+  .nav { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 6px; }
+  .nav .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .nav a { color: var(--muted); }
+  .translation { font-size: 16px; line-height: 1.55; color: var(--muted); margin: 4px 0 6px; }
+  .reading { font-size: 30px; line-height: 2.35; margin: 14px 0 4px; padding: 6px 14px; background: #fff; border-radius: 16px; border: 2px dashed var(--line); }
+  .reading .ch { position: relative; display: inline-block; cursor: pointer; padding: 0 1px; border-radius: 6px; }
+  .reading .ch:hover { background: var(--accent-soft); }
+  .reading .py { position: absolute; left: 50%; transform: translateX(-50%); top: -1.05em; font-size: 12px; line-height: 1; white-space: nowrap; color: var(--muted); visibility: hidden; }
+  .reading.show-pinyin .py, .reading .ch.reveal .py { visibility: visible; }
+  .s-tone { background: var(--tone-bg); color: var(--tone); } .s-tone .py { visibility: visible; color: var(--tone); }
+  .s-misread { background: var(--miss-bg); color: var(--miss); } .s-misread .py { visibility: visible; color: var(--miss); }
+  .s-skipped { background: var(--skip-bg); color: var(--skip); text-decoration: line-through; } .s-skipped .py { visibility: visible; }
+  .s-unread { opacity: .4; }
+  .s-pause { box-shadow: inset 3px 0 0 var(--accent); padding-left: 4px; }
+  #tooltip svg { display: block; margin-top: 4px; }
+  .defbox { margin-top: 12px; background: #fff; border: 2px solid var(--accent-soft); border-radius: 16px; padding: 12px 16px; display: flex; gap: 14px; align-items: flex-start; }
+  .defbox .w { font-size: 34px; line-height: 1.1; color: var(--accent-dark); }
+  .defbox .w small { display: block; font-size: 13px; color: var(--muted); }
+  .defbox .py { font-size: 16px; font-weight: 700; } .defbox ol { margin: 4px 0 0; padding-left: 18px; font-size: 14px; }
+  .defbox .x { margin-left: auto; border: 0; background: none; font-size: 18px; padding: 0 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 4px; vertical-align: -1px; }
+  .heard { font-size: 15px; color: var(--muted); min-height: 1.4em; margin-top: 8px; }
+  details summary { cursor: pointer; }
+
+  /* Coach */
+  .coach { display: flex; gap: 14px; align-items: flex-start; }
+  .coach .avatar { width: 58px; height: 58px; flex: none; }
+  .bubble { position: relative; background: var(--accent-soft); border-radius: 18px; padding: 12px 16px; flex: 1; }
+  .bubble:before { content: ""; position: absolute; left: -9px; top: 18px; border: 9px solid transparent; border-right-color: var(--accent-soft); border-left: 0; }
+  .bubble p { margin: 0; line-height: 1.5; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  .stat { background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 8px 16px; min-width: 104px; }
+  .stat b { display: block; font-size: 26px; } .stat span { font-size: 12px; color: var(--muted); }
+  .tip { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .tip b { font-size: 22px; color: var(--accent-dark); min-width: 46px; }
+  .practice { list-style: none; padding: 0; margin: 0; } .practice li { padding: 6px 0; }
+  .practice .zh { font-size: 20px; cursor: pointer; } .practice .zh:hover { color: var(--accent-dark); }
+  .alert { background: var(--miss-bg); color: var(--miss); padding: 10px 14px; border-radius: 14px; margin-top: 14px; }
+  .flag { background: var(--tone-bg); color: var(--tone); padding: 9px 13px; border-radius: 14px; margin-top: 10px; font-size: 14px; }
+  #tooltip { position: fixed; pointer-events: none; background: var(--ink); color: #fff; padding: 6px 10px; border-radius: 10px; font-size: 13px; display: none; z-index: 9; }
+
+  /* Review */
+  .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--pink); color: var(--ink); font-size: 12px; font-weight: 700; margin-left: 6px; }
+  .card-word { font-size: 46px; text-align: center; margin: 10px 0 4px; letter-spacing: .06em; }
+  .card-word mark { background: var(--tone-bg); color: var(--tone); border-radius: 10px; padding: 0 6px; }
+  .center { text-align: center; justify-content: center; }
+  .deck-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .deck-list span { background: #fff; border: 2px solid var(--line); border-radius: 12px; padding: 2px 10px; font-size: 18px; }
+  .deck-list span small { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  .result-ok { color: var(--good); } .result-bad { color: var(--miss); }
+  .loading { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 8px 0; }
+  .loading svg { width: 34px; height: 34px; animation: bob 1s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-4px) rotate(-4deg); } }
+  .in-page .reading { display: none; }
+  .page-note { display: none; background: var(--accent-soft); border-radius: 14px; padding: 10px 14px; margin: 10px 0 4px; font-size: 14px; }
+  .in-page .page-note { display: block; }
+  .lang { display: inline-flex; border: 2px solid var(--line); border-radius: 999px; overflow: hidden; margin-left: auto; }
+  .lang button { border: 0; border-radius: 0; padding: 6px 12px; box-shadow: none; white-space: nowrap; }
+  .lang, #reviewBtn, #progressBtn { flex: none; white-space: nowrap; }
+  header { flex-wrap: wrap; } .brand { flex: 1 1 260px; }
+  .lang button.on { background: var(--accent); color: #fff; }
+  .lang-en .zh-only { display: none !important; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .tile { background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 10px 14px; }
+  .tile b { display: block; font-size: 26px; } .tile span { font-size: 12px; color: var(--muted); }
+  .chart { background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 10px 12px 4px; margin-top: 12px; position: relative; }
+  .chart h4 { margin: 0 0 4px; font-size: 13px; color: var(--ink); font-weight: 700; }
+  .chart svg { width: 100%; height: 150px; display: block; overflow: visible; }
+  .chart .grid line { stroke: var(--line); stroke-width: 1; } .chart .grid text { fill: var(--muted); font-size: 10px; }
+  .chart .hit { fill: transparent; cursor: pointer; }
+  table.hist { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  table.hist th, table.hist td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  table.hist th { color: var(--muted); font-weight: 600; }
+  footer { margin-top: 22px; color: var(--muted); font-size: 12px; text-align: center; }
+  @media (max-width: 560px) { .tabs { grid-template-columns: 1fr; } .reading { font-size: 26px; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="cat" viewBox="0 0 64 64">
+    <path d="M10 26 L14 6 L28 18 Z" fill="#e8823a"/><path d="M54 26 L50 6 L36 18 Z" fill="#e8823a"/>
+    <path d="M14 22 L16 12 L23 18 Z" fill="#f3a6b5"/><path d="M50 22 L48 12 L41 18 Z" fill="#f3a6b5"/>
+    <ellipse cx="32" cy="36" rx="24" ry="21" fill="#f19a55"/>
+    <path d="M32 15 l-4 8 h8 z M20 20 l2 7 l4 -3 z M44 20 l-2 7 l-4 -3 z" fill="#d9752f"/>
+    <ellipse cx="32" cy="43" rx="12" ry="9" fill="#fff4e8"/>
+    <ellipse cx="23" cy="34" rx="3" ry="4" fill="#3d2f28"/><ellipse cx="41" cy="34" rx="3" ry="4" fill="#3d2f28"/>
+    <circle cx="24" cy="32.6" r="1" fill="#fff"/><circle cx="42" cy="32.6" r="1" fill="#fff"/>
+    <path d="M29.5 40 h5 l-2.5 3 z" fill="#f3a6b5"/>
+    <path d="M32 43 q-2 3 -5 2 M32 43 q2 3 5 2" stroke="#3d2f28" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+    <path d="M6 38 h12 M7 44 l11 -3 M58 38 h-12 M57 44 l-11 -3" stroke="#3d2f28" stroke-width="1" stroke-linecap="round" opacity=".55"/>
+  </symbol>
+</svg>
+
+<header>
+  <svg class="logo"><use href="#cat"/></svg>
+  <div class="brand">
+    <h1>猫猫读 <span>MaoMao Read</span></h1>
+    <p id="tagline">Read Chinese out loud. Mao listens and shows which characters slipped.</p>
+  </div>
+  <div class="lang" title="English mode is for testers who don't read Chinese"><button data-lang="zh">中文</button><button data-lang="en">English</button></div>
+  <button id="progressBtn" title="Your reading over time">📈&nbsp; Progress</button>
+  <button id="reviewBtn" title="Things you misread before">🐟&nbsp; Review<span class="badge" id="dueBadge">0</span></button>
+</header>
+
+<main>
+  <!-- Step 1: choose what to read -->
+  <section class="card" id="startCard">
+    <h2>🐾&nbsp; What shall we read today?</h2>
+    <div class="tabs">
+      <button class="tab on" data-mode="find"><b>✨&nbsp; Find me something</b><span>Real articles or a short story picked for your level</span></button>
+      <button class="tab" data-mode="own"><b>📖&nbsp; I have my own</b><span id="ownDesc">Paste text or a link to any Chinese page</span></button>
+    </div>
+
+    <div class="zh-only" style="margin-top:12px;display:flex;align-items:center;gap:10px">
+      <span class="muted" style="font-weight:600">Characters</span>
+      <div class="chips" id="scripts">
+        <button class="chip" data-script="s">简体 simplified</button>
+        <button class="chip" data-script="t">繁體 traditional</button>
+      </div>
+      <span class="muted" style="font-size:12px">Articles are converted automatically</span>
+    </div>
+
+    <div id="findPane">
+      <h3>I'd like to read</h3>
+      <div class="chips" id="kinds"></div>
+      <p class="muted" id="kindSources" style="margin:8px 2px 0;font-size:13px"></p>
+      <h3>My reading level</h3>
+      <div class="chips" id="levels"></div>
+      <div class="bar">
+        <button class="primary" id="findBtn">🔎&nbsp; Find real articles</button>
+        <button id="storyBtn">✍️&nbsp; Write me a story</button>
+      </div>
+      <div id="findResults"></div>
+    </div>
+
+    <div id="ownPane" class="hidden">
+      <h3 id="linkLabel">A link to a Chinese web page</h3>
+      <div class="bar" style="margin-top:0"><input class="field" id="url" placeholder="https://… news story, blog post, Wikipedia page" style="flex:1"><button id="fetchBtn">Import</button></div>
+      <h3>…or paste text</h3>
+      <textarea class="field" id="text" placeholder="粘贴一段中文… a WeChat message, a paragraph, a story"></textarea>
+      <div class="bar">
+        <button class="primary" id="prepareBtn">Let's read</button>
+        <select id="samples"><option value="">Try a sample…</option></select>
+        <span class="muted" id="count"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 2: read aloud -->
+  <section class="card hidden" id="readCard">
+    <h2>🎙️&nbsp; Read it aloud</h2>
+    <div class="nav hidden" id="nav">
+      <button id="prevBtn">←</button><span id="navPos"></span><button id="nextPassBtn">→</button>
+      <span class="title" id="navTitle"></span>
+    </div>
+    <div id="levelBox"></div>
+    <div class="page-note">👈 You're reading on the web page. Mistakes will be colored right there; hover them to see what Mao heard. Tap a character in the highlighted passage for its meaning.</div>
+    <div class="reading" id="reading"></div>
+    <div class="defbox hidden" id="defBox"></div>
+    <div class="legend hidden" id="legend">
+      <span class="zh-only"><i style="background:var(--tone-bg);border:1px solid var(--tone)"></i>wrong tone</span>
+      <span><i style="background:var(--miss-bg);border:1px solid var(--miss)"></i>misread</span>
+      <span><i style="background:var(--skip-bg);border:1px solid var(--skip)"></i>skipped</span>
+      <span><i style="background:var(--card);border:1px solid var(--line);opacity:.5"></i>not read yet</span>
+      <span><i style="box-shadow:inset 3px 0 0 var(--accent);background:var(--card)"></i>hesitated here</span>
+      <span>Hover to see what Mao heard · tap a character for its meaning</span>
+    </div>
+    <div class="bar">
+      <button class="primary" id="recBtn">🎤 Start reading</button>
+      <button id="pinyinBtn" class="zh-only">Show pinyin</button>
+      <button id="listenBtn">🔊 Hear it</button>
+      <span class="muted" id="recStatus"></span>
+    </div>
+    <div class="heard" id="heard"></div>
+    <details class="muted" id="typeBox" style="margin-top:6px">
+      <summary>No microphone? Type what you read instead</summary>
+      <div class="bar"><input class="field" id="typed" style="flex:1"><button id="typedBtn">Check</button></div>
+    </details>
+  </section>
+
+  <!-- Step 3: feedback -->
+  <section class="card hidden" id="resultCard">
+    <h2>😺&nbsp; Coach Mao says</h2>
+    <div class="stats" id="stats"></div>
+    <div id="coach"></div>
+  </section>
+
+  <section class="card hidden" id="progressCard">
+    <h2>📈&nbsp; Your progress</h2>
+    <div id="progressBody"></div>
+  </section>
+
+  <section class="card hidden" id="reviewCard">
+    <h2 id="reviewTitle">🐟&nbsp; Review · characters that slipped before</h2>
+    <div id="reviewBody"></div>
+    <div class="deck-list" id="deckList"></div>
+  </section>
+
+  <div id="error"></div>
+  <footer id="usage"></footer>
+</main>
+<div id="tooltip"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const CAT = '<svg><use href="#cat"/></svg>';
+const loading = msg => `<div class="loading">${CAT}<span>${msg}</span></div>`;
+let current = null;      // {text, chars}
+
+// Language: Chinese (the real app) or English (practice mode so testers can try every feature)
+const LANG = (JSON.parse(localStorage.getItem("maoProfile") || "{}").lang) === "en" ? "en" : "zh";
+const EN = LANG === "en";
+const T = (zh, en) => EN ? en : zh;
+const LEVEL = n => EN ? ["A1", "A2", "B1", "B2", "C1", "C2"][Math.min(n, 6) - 1] : `HSK ${n > 6 ? "6+" : n}`;
+document.documentElement.classList.toggle("lang-en", EN);
+document.querySelectorAll(".lang button").forEach(b => {
+  b.classList.toggle("on", b.dataset.lang === LANG);
+  b.onclick = () => { const p = JSON.parse(localStorage.getItem("maoProfile") || "{}"); p.lang = b.dataset.lang; localStorage.setItem("maoProfile", JSON.stringify(p)); location.reload(); };
+});
+if (EN) {
+  document.querySelector(".brand h1").innerHTML = "<span>MaoMao Read</span> · English practice";
+  document.title = "MaoMao Read · English practice";
+  $("tagline").textContent = "English practice mode · read out loud and Mao shows which words slipped.";
+  $("ownDesc").textContent = "Paste text or a link to any English page";
+  $("linkLabel").textContent = "A link to an English web page";
+  $("text").placeholder = "Paste a paragraph, a story, an email…";
+  $("reviewTitle").innerHTML = "🐟&nbsp; Review · words that slipped before";
+}
+
+async function api(path, body) {
+  const res = await fetch(path, body ? { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) } : {});
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Something went wrong");
+  return data;
+}
+function showError(msg) { $("error").innerHTML = msg ? `<div class="alert">🙀 ${esc(msg)}</div>` : ""; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+// "Hear it": natural neural voice from the server; the browser's own voice is only a fallback
+let player = null;
+function speak(text, rate = 0.8) {
+  if (player) player.pause();
+  player = new Audio(`/api/tts?text=${encodeURIComponent(text)}&slow=${rate < 0.75}&lang=${LANG}`);
+  player.play().catch(() => {
+    const u = new SpeechSynthesisUtterance(text); u.lang = EN ? "en-US" : "zh-CN"; u.rate = rate;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  });
+}
+async function refreshUsage() {
+  const u = await api("/api/usage");
+  $("usage").textContent = `🐾 Tokens this session: ${u.session_tokens.toLocaleString()} / ${u.budget.toLocaleString()}`;
+}
+refreshUsage();
+
+// ---------- Start: two ways in ----------
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
+  $("findPane").classList.toggle("hidden", t.dataset.mode !== "find");
+  $("ownPane").classList.toggle("hidden", t.dataset.mode !== "own");
+});
+
+// Reading profile, remembered in this browser
+const profile = Object.assign({ kind: "news", level: 2, script: "s", seen: [] }, JSON.parse(localStorage.getItem("maoProfile") || "{}"));
+const saveProfile = () => localStorage.setItem("maoProfile", JSON.stringify(profile));
+const SCRIPT = () => EN ? "" : profile.script;
+function renderScripts() { document.querySelectorAll("[data-script]").forEach(b => b.classList.toggle("on", b.dataset.script === profile.script)); }
+renderScripts();
+$("scripts").onclick = e => {
+  const b = e.target.closest("[data-script]"); if (!b) return;
+  profile.script = b.dataset.script; saveProfile(); renderScripts(); schedulePrefetch();
+  if (DESKTOP) toDesktop({ type: "lang", lang: LANG, script: SCRIPT() });
+  if (current && !inPage) prepare(current.text);  // show the passage you're on in the new script
+};
+let categories = [];
+api(`/api/categories?lang=${LANG}`).then(c => { categories = c; renderProfile(); });
+function renderProfile() {
+  $("kinds").innerHTML = categories.map(c => `<button class="chip ${c.kind === profile.kind ? "on" : ""}" data-kind="${c.kind}">${esc(c.label).replace(" ", "&nbsp; ")}</button>`).join("");
+  if (categories.length && !categories.some(c => c.kind === profile.kind)) profile.kind = categories[0].kind;
+  const cat = categories.find(c => c.kind === profile.kind);
+  $("kindSources").textContent = cat ? "Mao only searches trusted sites: " + cat.sources.join(" · ") : "";
+  $("levels").innerHTML = [1, 2, 3, 4, 5, 6].map(n =>
+    `<button class="chip ${profile.level === n ? "on" : ""}" data-level="${n}">${LEVEL(n)}${n === 1 ? " · beginner" : n === 6 ? " · fluent" : ""}</button>`).join("");
+}
+renderProfile();
+$("kinds").onclick = e => { const b = e.target.closest("[data-kind]"); if (b) { profile.kind = b.dataset.kind; saveProfile(); renderProfile(); schedulePrefetch(); } };
+$("levels").onclick = e => { const b = e.target.closest("[data-level]"); if (b) { profile.level = +b.dataset.level; saveProfile(); renderProfile(); schedulePrefetch(); } };
+
+let found = [];
+// Prefetch: Mao starts looking as soon as the profile is set, so results are usually ready on click
+let prefetch = null;
+const profileKey = () => JSON.stringify([LANG, profile.kind, profile.level, SCRIPT()]);
+function startPrefetch() {
+  const key = profileKey();
+  if (prefetch && prefetch.key === key) return prefetch.promise;
+  const promise = api("/api/find", { lang: LANG, script: SCRIPT(), kind: profile.kind, level: profile.level, interests: [], exclude: profile.seen });
+  promise.catch(() => {});
+  prefetch = { key, promise };
+  return promise;
+}
+let prefetchTimer = null;
+const schedulePrefetch = () => { clearTimeout(prefetchTimer); prefetchTimer = setTimeout(startPrefetch, 2000); };
+schedulePrefetch();
+$("findBtn").onclick = async () => {
+  showError(""); $("findBtn").disabled = true;
+  $("findResults").innerHTML = loading("Mao is sniffing around the web for articles…");
+  try {
+    const d = await startPrefetch();
+    prefetch = null;  // next click looks for new articles
+    found = d.articles;
+    const dropped = d.rounds.reduce((n, r) => n + r.dropped, 0);
+    $("findResults").innerHTML = found.length ? `<div class="results">${found.map((a, i) => `
+      <button class="result" data-i="${i}">
+        <span class="pill">${LEVEL(a.estimated_hsk)}</span><span class="pill soft">${esc(a.source)}</span>${a.script === "traditional" ? '<span class="pill soft">繁體</span>' : ""}
+        <b>${esc(a.title)}</b><small>${esc(a.why)} · ${a.passages.length} passage${a.passages.length === 1 ? "" : "s"}</small>
+      </button>`).join("")}</div>
+      ${dropped ? `<p class="muted">🐾 Mao checked every link and skipped ${dropped} that didn't open or had no ${T("Chinese", "English")} article.</p>` : ""}`
+      : `<p class="muted">😿 No readable articles found this time. Try again, pick another category, or let Mao write you a story.</p>`;
+  } catch (e) { $("findResults").innerHTML = ""; showError(e.message); }
+  $("findBtn").disabled = false; refreshUsage();
+};
+$("findResults").onclick = e => {
+  const b = e.target.closest(".result"); if (!b) return;
+  const a = found[+b.dataset.i];
+  profile.seen = [...profile.seen, a.url].slice(-30); saveProfile();
+  if (DESKTOP) {  // open the real page on the left and read it there
+    toDesktop({ type: "open", url: a.url });
+    $("findResults").querySelectorAll(".result").forEach(x => x.style.opacity = x === b ? 1 : .5);
+    return;
+  }
+  window.loadArticle(a);
+};
+$("storyBtn").onclick = async () => {
+  showError(""); $("storyBtn").disabled = true;
+  $("findResults").innerHTML = loading("Mao is writing you a story…");
+  try {
+    const s = await api("/api/story", { lang: LANG, kind: profile.kind, level: profile.level, interests: [] });
+    $("findResults").innerHTML = "";
+    window.loadArticle({ title: EN ? s.title : `${s.title} · ${s.english_title}`, url: "", passages: [s.story] });
+  } catch (e) { $("findResults").innerHTML = ""; showError(e.message); }
+  $("storyBtn").disabled = false;
+};
+
+// Own text, link or sample
+api(`/api/samples?lang=${LANG}`).then(list => list.forEach(s => {
+  const o = document.createElement("option"); o.value = s.text; o.textContent = s.title; $("samples").append(o);
+}));
+$("samples").onchange = e => { if (e.target.value) { $("text").value = e.target.value; updateCount(); window.loadFromBrowser(e.target.value); } };
+const updateCount = () => $("count").textContent = $("text").value.length ? `${$("text").value.length} / 600` : "";
+$("text").oninput = updateCount;
+$("prepareBtn").onclick = () => window.loadFromBrowser($("text").value);
+$("fetchBtn").onclick = async () => {
+  showError(""); $("fetchBtn").disabled = true; $("fetchBtn").textContent = "Importing…";
+  try { window.loadArticle(await api("/api/fetch", { url: $("url").value, lang: LANG, script: SCRIPT() })); } catch (e) { showError(e.message); }
+  $("fetchBtn").disabled = false; $("fetchBtn").textContent = "Import";
+};
+$("url").onkeydown = e => { if (e.key === "Enter") $("fetchBtn").click(); };
+
+// Entry points, also called by the desktop app's browser pane (desktop.py)
+let article = null, passageIdx = 0;
+let inPage = false, DESKTOP = false;
+const setInPage = v => { inPage = v; $("readCard").classList.toggle("in-page", v); };
+window.loadFromBrowser = text => { setInPage(false); article = null; $("nav").classList.add("hidden"); prepare(text.trim().slice(0, 600)); };
+window.loadArticle = a => { if (a.error) return showError(a.error); setInPage(false); article = a; showPassage(0); };
+
+// ---------- Desktop app: reading happens on the real web page (left pane) ----------
+const toDesktop = msg => console.log("MAOMAO:" + JSON.stringify(msg));
+window.desktopMode = () => {
+  DESKTOP = true;
+  toDesktop({ type: "lang", lang: LANG, script: SCRIPT() });
+  document.querySelector('[data-mode="own"] span').textContent = `Browse any ${T("Chinese", "English")} site on the left, then press 🐾 Read on this page`;
+  $("ownPane").insertAdjacentHTML("afterbegin", `<div class="flag" style="margin-bottom:6px">👈 Tip: in the desktop app you can read straight on the web page. Open any site on the left and press <b>🐾 Read on this page</b>.</div>`);
+};
+window.desktopPassage = m => {
+  setInPage(true); article = null;
+  $("nav").classList.remove("hidden");
+  $("prevBtn").classList.remove("hidden"); $("nextPassBtn").classList.remove("hidden");
+  $("navPos").textContent = `${m.index + 1} / ${m.total}`;
+  $("navTitle").textContent = m.title;
+  $("prevBtn").disabled = m.index === 0; $("nextPassBtn").disabled = m.index === m.total - 1;
+  prepare(m.text.slice(0, 600));
+};
+window.desktopStopped = () => setInPage(false);
+window.desktopDefine = m => { if (!EN) showDefinition(m.text, m.index); };
+function showPassage(i) {
+  passageIdx = i;
+  const many = article.passages.length > 1;
+  $("nav").classList.toggle("hidden", !many && !article.title);
+  $("navPos").textContent = many ? `${i + 1} / ${article.passages.length}` : "";
+  $("prevBtn").classList.toggle("hidden", !many); $("nextPassBtn").classList.toggle("hidden", !many);
+  $("navTitle").innerHTML = article.url ? `<a href="${esc(article.url)}" target="_blank" rel="noopener">${esc(article.title)}</a>` : esc(article.title || "");
+  $("prevBtn").disabled = i === 0; $("nextPassBtn").disabled = i === article.passages.length - 1;
+  prepare(article.passages[i]);
+}
+$("prevBtn").onclick = () => inPage ? toDesktop({ type: "nav", dir: -1 }) : showPassage(passageIdx - 1);
+$("nextPassBtn").onclick = () => inPage ? toDesktop({ type: "nav", dir: 1 }) : showPassage(passageIdx + 1);
+
+// ---------- Step 2: prepare and read ----------
+async function prepare(text) {
+  showError(""); $("resultCard").classList.add("hidden");
+  if (!text) return showError(T("Paste some Chinese text first.", "Paste some English text first."));
+  $("readCard").classList.remove("hidden");
+  $("reading").innerHTML = ""; $("legend").classList.add("hidden"); $("heard").textContent = ""; $("defBox").classList.add("hidden");
+  $("levelBox").innerHTML = loading("Mao is reading it first…");
+  $("readCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    const d = await api("/api/prepare", { text, lang: LANG, script: SCRIPT() });
+    current = { text: d.text, chars: d.chars };
+    $("levelBox").innerHTML =
+      `<span class="pill">${LEVEL(d.hsk_level)}</span><span class="muted">${esc(d.level_reason)}</span>
+       <details style="margin-top:8px"><summary class="muted">${T("English translation", "Summary")}</summary><div class="translation">${esc(d.translation)}</div></details>
+       ${d.suspicious_instructions ? `<div class="flag">⚠️ This text contains instructions aimed at the AI. Mao ignored them.</div>` : ""}`;
+    renderReading();
+    if (inPage && !EN) {
+      toDesktop({ type: "pinyin", pinyin: d.chars.filter(c => c.pinyin).map(c => c.pinyin), show: $("reading").classList.contains("show-pinyin") });
+    }
+    if (inPage) $("readCard").scrollIntoView({ block: "start" });
+  } catch (e) { $("levelBox").innerHTML = ""; showError(e.message); }
+  refreshUsage();
+}
+
+// Mini chart of your pitch (orange) against the native speaker's (gray) for one character
+function sparkline(you, native) {
+  const all = [...(you || []), ...(native || [])], lo = Math.min(...all) - 1, hi = Math.max(...all) + 1;
+  const pts = c => c.map((v, i) => `${8 + i * 26},${54 - (v - lo) / (hi - lo) * 48}`).join(" ");
+  return `<svg width="120" height="60" viewBox="0 0 120 60"><rect width="120" height="60" rx="6" fill="#fff" opacity=".12"/>
+    ${native ? `<polyline points="${pts(native)}" fill="none" stroke="#ccc" stroke-width="3" stroke-dasharray="4 3"/>` : ""}
+    ${you ? `<polyline points="${pts(you)}" fill="none" stroke="#e8823a" stroke-width="3"/>` : ""}</svg>`;
+}
+function tipFor(r, c) {
+  if (!r) return "";
+  let t = "";
+  if (r.status === "skipped") t = "Skipped";
+  else if (r.tone_from_pitch) t = `Tone slip: your voice was ${r.you_shape}; a native speaker's is ${r.native_shape} (${c.pinyin})${sparkline(r.you, r.native)}<small>orange = you · dashed = native</small>`;
+  else if (r.status === "tone" || r.status === "misread") t = EN ? `Mao heard “${esc(r.heard)}”` : `Mao heard ${esc(r.heard)} (${esc(r.heard_pinyin)}) · should be ${esc(c.pinyin)}`;
+  if (r.pause) t = (t ? t + "<br>" : "") + `⏸ You paused ${r.pause}s before this`;
+  return t;
+}
+function renderReading(results) {
+  // results only cover Chinese characters, in order; walk them alongside the full text
+  let k = 0, off = 0;
+  $("reading").innerHTML = current.chars.map(c => {
+    const at = off; off += c.ch.length;
+    if (!c.w) return esc(c.ch);
+    const r = results ? results[k++] : null;
+    const cls = (r && ["tone", "misread", "skipped", "unread"].includes(r.status) ? `s-${r.status}` : "") + (r && r.pause ? " s-pause" : "");
+    const tip = tipFor(r, c);
+    return `<span class="ch ${cls}" data-ch="${esc(c.ch)}" data-off="${at}" data-tip="${esc(tip)}"><span class="py">${esc(c.pinyin)}</span>${esc(c.ch)}</span>`;
+  }).join("");
+  $("legend").classList.toggle("hidden", !results);
+}
+$("reading").onclick = e => {
+  const r = e.target.closest(".ch"); if (!r) return;
+  r.classList.add("reveal");
+  if (EN) return speak(r.dataset.ch, 0.6);
+  showDefinition(current.text, +r.dataset.off);
+};
+
+// Tap for meaning: offline CC-CEDICT, longest word around the tapped character
+async function showDefinition(text, i) {
+  const box = $("defBox");
+  box.classList.remove("hidden"); box.innerHTML = '<span class="muted">Looking it up…</span>';
+  const d = await api(`/api/define?text=${encodeURIComponent(text)}&i=${i}`);
+  if (!d.entries.length) { box.innerHTML = `<span class="muted">No dictionary entry for ${esc(d.word)}.</span>`; return; }
+  const e0 = d.entries[0];
+  speak(d.word, 0.7);
+  box.innerHTML = `
+    <div class="w">${esc(d.word)}${e0.traditional !== e0.simplified ? `<small>${esc(e0.traditional === d.word ? e0.simplified : e0.traditional)}</small>` : ""}</div>
+    <div style="flex:1">${d.entries.map(e => `<div class="py">${esc(e.pinyin)}</div><ol>${e.meanings.map(m => `<li>${esc(m)}</li>`).join("")}</ol>`).join("")}
+      <div class="bar" style="margin-top:8px"><button id="defHear">🔊 Hear</button><button id="defAdd">＋ Add to review</button></div></div>
+    <button class="x" id="defClose" title="Close">✕</button>`;
+  $("defHear").onclick = () => speak(d.word, 0.6);
+  $("defClose").onclick = () => box.classList.add("hidden");
+  $("defAdd").onclick = () => {
+    const deck = loadDeck(), at = i - d.start, key = `zh|${d.word[at]}|${d.word}`;
+    deck[key] = deck[key] || { lang: "zh", ch: d.word[at], pinyin: e0.pinyin.split(" ")[at] || e0.pinyin, phrase: d.word, tokens: [...d.word], at, k: at, misses: 0, box: 0, added: Date.now(), due: Date.now(), last: "looked up" };
+    saveDeck(deck); $("defAdd").textContent = "✓ Added"; $("defAdd").disabled = true;
+  };
+}
+$("reading").onmousemove = e => {
+  const r = e.target.closest(".ch"), t = $("tooltip");
+  if (r && r.dataset.tip) { t.innerHTML = r.dataset.tip; t.style.display = "block"; t.style.left = e.clientX + 12 + "px"; t.style.top = e.clientY + 14 + "px"; }
+  else t.style.display = "none";
+};
+$("reading").onmouseleave = () => $("tooltip").style.display = "none";
+$("pinyinBtn").onclick = () => {
+  const on = $("reading").classList.toggle("show-pinyin");
+  $("pinyinBtn").textContent = on ? "Hide pinyin" : "Show pinyin";
+  if (inPage) toDesktop({ type: "pinyin", show: on });
+};
+$("listenBtn").onclick = () => current && speak(current.text);
+
+// Recording: capture the microphone, encode 16 kHz WAV, transcribe locally with Whisper on the server
+const MIC = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+if (!MIC) { $("recBtn").disabled = true; $("recStatus").textContent = "No microphone access here. You can type what you read below."; $("typeBox").open = true; }
+function toWav(chunks, rate) {
+  const len = chunks.reduce((n, c) => n + c.length, 0), all = new Float32Array(len);
+  let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const ratio = rate / 16000, n = Math.floor(len / ratio), buf = new DataView(new ArrayBuffer(44 + n * 2));
+  const str = (off, t) => [...t].forEach((ch, i) => buf.setUint8(off + i, ch.charCodeAt(0)));
+  str(0, "RIFF"); buf.setUint32(4, 36 + n * 2, true); str(8, "WAVEfmt "); buf.setUint32(16, 16, true);
+  buf.setUint16(20, 1, true); buf.setUint16(22, 1, true); buf.setUint32(24, 16000, true); buf.setUint32(28, 32000, true);
+  buf.setUint16(32, 2, true); buf.setUint16(34, 16, true); str(36, "data"); buf.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, all[Math.floor(i * ratio)])); buf.setInt16(44 + i * 2, v * 0x7fff, true); }
+  return buf.buffer;
+}
+function recorder(btn, heardEl, idleLabel, onDone) {
+  let session = null;
+  btn.onclick = async () => {
+    if (session) {  // stop
+      const { stream, ctx, node, chunks, t0 } = session; session = null;
+      node.disconnect(); stream.getTracks().forEach(t => t.stop());
+      const seconds = (Date.now() - t0) / 1000, wav = toWav(chunks, ctx.sampleRate); ctx.close();
+      btn.textContent = idleLabel; btn.classList.remove("rec"); btn.disabled = true;
+      heardEl.textContent = "Mao is listening back…";
+      try {
+        const res = await fetch(`/api/transcribe?lang=${LANG}`, { method: "POST", headers: {"Content-Type": "application/octet-stream"}, body: wav });
+        const d = await res.json(); if (!res.ok) throw new Error(d.detail);
+        heardEl.textContent = "Mao heard: " + d.text;
+        onDone(d.text, seconds, d.audio_id);
+      } catch (e) { heardEl.textContent = ""; showError("Transcription failed: " + e.message); }
+      btn.disabled = false;
+      return;
+    }
+    showError(""); heardEl.textContent = "";
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new AudioContext(), src = ctx.createMediaStreamSource(stream), node = ctx.createScriptProcessor(4096, 1, 1), chunks = [];
+      node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      src.connect(node); node.connect(ctx.destination);
+      session = { stream, ctx, node, chunks, t0: Date.now() };
+      btn.textContent = "■ Stop and check"; btn.classList.add("rec");
+      heardEl.textContent = "👂 Listening… read, then press stop.";
+    } catch (e) { showError("Microphone blocked: " + e.message); }
+  };
+}
+recorder($("recBtn"), $("heard"), "🎤 Read again", (t, sec, id) => check(t, sec, id));
+$("typedBtn").onclick = () => check($("typed").value, 0);
+
+// ---------- Step 3: score (code) + coach (AI) ----------
+async function check(heard, seconds, audioId = "") {
+  if (!heard.trim()) { showError("Nothing was heard. Check your microphone and try again."); return; }
+  $("resultCard").classList.remove("hidden"); $("stats").innerHTML = ""; $("coach").innerHTML = loading("Mao is checking your reading…");
+  try {
+    const d = await api("/api/score", { text: current.text, heard, seconds, lang: LANG, audio_id: audioId });
+    renderReading(d.results);
+    if (inPage) toDesktop({ type: "mark", results: d.results });
+    addToDeck(d.results);
+    saveAttempt(d);
+    const s = d.stats, c = d.coach;
+    const face = s.accuracy >= 95 ? "😻" : s.accuracy >= 80 ? "😺" : s.accuracy >= 60 ? "🐱" : "🙀";
+    $("stats").innerHTML =
+      `<div class="stat"><b>${face} ${s.accuracy}%</b><span>accuracy</span></div>
+       <div class="stat"><b>${s.errors}</b><span>to practice</span></div>
+       ${s.tone_slips ? `<div class="stat"><b>${s.tone_slips}</b><span>tone slips (pitch)</span></div>` : ""}
+       ${s.pauses ? `<div class="stat"><b>${s.pauses}</b><span>hesitations</span></div>` : ""}
+       ${s.unread ? `<div class="stat"><b>${s.unread}</b><span>not read yet</span></div>` : ""}
+       ${s.chars_per_minute ? `<div class="stat"><b>${s.chars_per_minute}</b><span>${T("characters", "words")} / min</span></div>` : ""}`;
+    $("coach").innerHTML =
+      `<div class="coach"><svg class="avatar"><use href="#cat"/></svg><div class="bubble"><p>${esc(c.summary)}</p></div></div>
+       ${c.tips.length ? `<h3>${T("Characters", "Words")} to practice</h3>${c.tips.map(t => `<div class="tip"><b>${esc(t.chars)}</b><span>${esc(t.tip)}</span></div>`).join("")}` : ""}
+       <h3>Practice sentences · click to hear</h3>
+       <ul class="practice">${c.practice_sentences.map(p => `<li><span class="zh" data-zh="${esc(p.chinese)}">${esc(p.chinese)}</span> <span class="muted">${esc(p.english)}</span></li>`).join("")}</ul>
+       <div class="bar"><button class="primary" id="nextBtn">Read these next →</button></div>
+       ${c.suspicious_instructions ? `<div class="flag">⚠️ The passage contained instructions aimed at the AI. Mao ignored them; scores are computed by code, not by the AI.</div>` : ""}`;
+    $("nextBtn").onclick = () => window.loadFromBrowser(c.practice_sentences.map(p => p.chinese).join(""));
+  } catch (e) { $("coach").innerHTML = ""; showError(e.message); }
+  refreshUsage();
+}
+document.addEventListener("click", e => { if (e.target.dataset && e.target.dataset.zh) speak(e.target.dataset.zh); });
+
+// ---------- Review deck ----------
+// Every misread character, saved in this browser with its context.
+// Leitner boxes: a correct review moves a card up a box (due later), a miss sends it back to box 0.
+const DAYS = [0, 1, 3, 7, 21];
+const DAY_MS = 86400000;
+const loadDeck = () => JSON.parse(localStorage.getItem("readAloudDeck") || "{}");
+const saveDeck = d => { localStorage.setItem("readAloudDeck", JSON.stringify(d)); updateBadge(); };
+// Each language has its own deck (older cards without a lang are Chinese)
+const myCards = () => Object.values(loadDeck()).filter(c => (c.lang || "zh") === LANG);
+const dueCards = () => myCards().filter(c => c.due <= Date.now()).sort((a, b) => a.due - b.due);
+function updateBadge() { $("dueBadge").textContent = dueCards().length; }
+updateBadge();
+
+function addToDeck(results) {
+  const deck = loadDeck(), chars = current.chars;
+  const scored = chars.map((c, i) => c.w ? i : -1).filter(i => i >= 0); // token positions of scored characters/words
+  const stop = c => EN ? /[.!?,;:]/.test(c.ch) : !c.w;  // phrases stay inside one clause
+  results.forEach((r, k) => {
+    if (r.status !== "tone" && r.status !== "misread") return;  // skips and unread parts are not reading mistakes
+    const pos = scored[k];
+    let a = pos, b = pos, left = 0, right = 0;  // grow a short phrase: up to 3 characters (or 2 words) each side
+    const limit = EN ? 2 : 3;
+    while (a > 0 && !stop(chars[a - 1]) && left < limit) { a--; if (chars[a].w) left++; }
+    while (b < chars.length - 1 && !stop(chars[b + 1]) && right < limit) { b++; if (chars[b].w) right++; }
+    while (!chars[a].w) a++;
+    while (!chars[b].w) b--;
+    const tokens = chars.slice(a, b + 1).map(c => c.ch), phrase = tokens.join("");
+    const key = LANG + "|" + r.ch + "|" + phrase;
+    const card = deck[key] || { lang: LANG, ch: r.ch, pinyin: chars[pos].pinyin, phrase, tokens, at: pos - a,
+      k: chars.slice(a, pos).filter(c => c.w).length, misses: 0, box: 0, added: Date.now() };
+    card.misses++; card.box = 0; card.due = Date.now(); card.last = r.status;
+    deck[key] = card;
+  });
+  saveDeck(deck);
+}
+const cardKey = c => c.lang ? `${c.lang}|${c.ch}|${c.phrase}` : `${c.ch}|${c.phrase}`;
+
+let reviewQueue = [];
+$("reviewBtn").onclick = () => {
+  $("reviewCard").classList.toggle("hidden");
+  if (!$("reviewCard").classList.contains("hidden")) { reviewQueue = dueCards(); nextCard(); $("reviewCard").scrollIntoView({behavior: "smooth"}); }
+};
+function renderDeckList() {
+  const all = myCards().sort((a, b) => b.misses - a.misses);
+  $("deckList").innerHTML = all.map(c => `<span title="${esc(c.phrase)}">${esc(c.ch)}<small>${c.pinyin ? esc(c.pinyin) + " · " : ""}×${c.misses} · box ${c.box}</small></span>`).join("");
+}
+function nextCard() {
+  renderDeckList();
+  const card = reviewQueue[0];
+  if (!card) {
+    $("reviewBody").innerHTML = `<div class="coach"><svg class="avatar"><use href="#cat"/></svg><div class="bubble"><p>${myCards().length
+      ? "All caught up! Mao will bring cards back after 1, 3, 7 and 21 days."
+      : T("Your deck is empty. Characters you misread while reading get saved here automatically.", "Your deck is empty. Words you misread while reading get saved here automatically.")}</p></div></div>`;
+    return;
+  }
+  const tokens = card.tokens || [...card.phrase];
+  $("reviewBody").innerHTML = `
+    <div class="card-word" style="${EN ? "font-size:34px;letter-spacing:0" : ""}">${tokens.map((c, i) => i === card.at ? `<mark>${esc(c)}</mark>` : esc(c)).join("")}</div>
+    <p class="muted center">Read the phrase aloud · ${reviewQueue.length} due · slipped ${card.misses}× · last time: ${card.last === "tone" ? "wrong tone" : card.last}</p>
+    <div class="bar center">
+      <button class="primary" id="cardRec">🎤 Read it</button>
+      ${EN ? "" : '<button id="cardHint">Show pinyin</button>'}
+      <button id="cardHear">🔊 Hear it</button>
+    </div>
+    <div class="heard center" id="cardHeard"></div>
+    <div class="bar center"><input class="field" id="cardTyped" placeholder="or type what you read" style="max-width:260px"><button id="cardTypedBtn">Check</button></div>
+    <div id="cardResult" class="center" style="margin-top:10px"></div>`;
+  if (!EN) $("cardHint").onclick = () => $("cardHint").textContent = card.pinyin;
+  $("cardHear").onclick = () => speak(card.phrase, 0.7);
+  $("cardTypedBtn").onclick = () => gradeCard(card, $("cardTyped").value);
+  if (MIC) recorder($("cardRec"), $("cardHeard"), "🎤 Read it", t => gradeCard(card, t)); else $("cardRec").disabled = true;
+}
+async function gradeCard(card, heard) {
+  if (!heard.trim()) return showError("Nothing was heard. Try again.");
+  try {
+    // Same code scoring as passages, with the AI coach turned off (no tokens used)
+    const d = await api("/api/score", { text: card.phrase, heard, coach: false, lang: LANG });
+    const k = card.k ?? [...card.phrase].slice(0, card.at).filter(c => /[一-鿿]/.test(c)).length;
+    const r = d.results[k], right = r.status === "ok" || r.status === "homophone";
+    const deck = loadDeck(), c = deck[cardKey(card)];
+    if (right) { c.box = Math.min(c.box + 1, DAYS.length - 1); c.due = Date.now() + DAYS[c.box] * DAY_MS; }
+    else { c.box = 0; c.misses++; c.last = r.status; c.due = Date.now(); }
+    saveDeck(deck);
+    const sound = card.pinyin ? ` (${esc(card.pinyin)})` : "";
+    $("cardResult").innerHTML = (right
+      ? `<b class="result-ok">😻 ${esc(card.ch)}${sound} · see you in ${DAYS[c.box]} day${DAYS[c.box] === 1 ? "" : "s"}</b>`
+      : `<b class="result-bad">🙀 Mao heard “${esc(r.heard || "nothing")}”${r.heard_pinyin ? " (" + esc(r.heard_pinyin) + ")" : ""}, should be ${esc(card.ch)}${sound}</b>`)
+      + `<div class="bar center"><button class="primary" id="nextCardBtn">Next card →</button></div>`;
+    reviewQueue.shift();
+    if (!right) reviewQueue.push(c);  // try again at the end of this session
+    $("nextCardBtn").onclick = nextCard;
+  } catch (e) { showError(e.message); }
+}
+
+// ---------- Progress: every checked reading is saved in this browser ----------
+const loadHistory = () => JSON.parse(localStorage.getItem("maoHistory") || "[]");
+function saveAttempt(d) {
+  const h = loadHistory(), s = d.stats;
+  h.push({ t: Date.now(), lang: LANG, accuracy: s.accuracy, cpm: s.chars_per_minute, read: s.chars, errors: s.errors,
+           tone_slips: s.tone_slips || 0, pauses: s.pauses || 0, title: ($("navTitle").textContent || "").slice(0, 60),
+           missed: d.results.filter(r => ["tone", "misread"].includes(r.status)).map(r => r.ch) });
+  localStorage.setItem("maoHistory", JSON.stringify(h.slice(-500)));
+}
+
+// One single-series line chart (accuracy or speed). Hover a point for its value.
+function lineChart(title, points, unit, yMax) {
+  if (points.length < 2) return `<div class="chart"><h4>${title}</h4><p class="muted">Read at least two passages to see a trend.</p></div>`;
+  const W = 600, H = 150, L = 34, R = 10, T = 10, B = 22;
+  const max = yMax || Math.max(...points.map(p => p.y)) * 1.15 || 1;
+  const x = i => L + (W - L - R) * i / (points.length - 1), y = v => T + (H - T - B) * (1 - v / max);
+  const ticks = [0, max / 2, max].map(v => Math.round(v));
+  const line = points.map((p, i) => `${x(i).toFixed(1)},${y(p.y).toFixed(1)}`).join(" ");
+  return `<div class="chart"><h4>${title}</h4>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${title} over ${points.length} readings">
+      <g class="grid">${ticks.map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${v}</text>`).join("")}
+        <text x="${L}" y="${H - 4}">first</text><text x="${W - R}" y="${H - 4}" text-anchor="end">latest</text></g>
+      <polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      ${points.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.y)}" r="4" fill="var(--accent)" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke"/>
+        <circle class="hit" cx="${x(i)}" cy="${y(p.y)}" r="14" data-tip="${esc(p.label)}: <b>${p.y}${unit}</b>"/>`).join("")}
+    </svg></div>`;
+}
+$("progressBtn").onclick = () => {
+  const card = $("progressCard");
+  card.classList.toggle("hidden");
+  if (card.classList.contains("hidden")) return;
+  const h = loadHistory().filter(a => a.lang === LANG);
+  const unitName = T("characters", "words");
+  if (!h.length) {
+    $("progressBody").innerHTML = `<div class="coach"><svg class="avatar"><use href="#cat"/></svg><div class="bubble"><p>No readings yet. Every passage you check gets added here.</p></div></div>`;
+  } else {
+    const avg = (a, k) => Math.round(a.reduce((n, x) => n + (x[k] || 0), 0) / a.length);
+    const first = h.slice(0, Math.min(5, Math.ceil(h.length / 2))), last = h.slice(-Math.min(5, Math.floor(h.length / 2)) || -1);
+    const delta = avg(last, "accuracy") - avg(first, "accuracy");
+    const missCounts = {};
+    h.forEach(a => a.missed.forEach(c => missCounts[c] = (missCounts[c] || 0) + 1));
+    const weakest = Object.entries(missCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    const date = t => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const fmt = t => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    $("progressBody").innerHTML = `
+      <div class="tiles">
+        <div class="tile"><b>${h.length}</b><span>passages read</span></div>
+        <div class="tile"><b>${h.reduce((n, a) => n + a.read, 0).toLocaleString()}</b><span>${unitName} read aloud</span></div>
+        <div class="tile"><b>${avg(last, "accuracy")}%</b><span>recent accuracy ${h.length > 1 ? `(${delta >= 0 ? "+" : ""}${delta} vs. first)` : ""}</span></div>
+        <div class="tile"><b>${avg(h.filter(a => a.cpm), "cpm") || "–"}</b><span>${unitName} / min (average)</span></div>
+      </div>
+      ${lineChart("Accuracy per reading (%)", h.map(a => ({ y: a.accuracy, label: fmt(a.t) })), "%", 100)}
+      ${lineChart(`Reading speed (${unitName} / min)`, h.filter(a => a.cpm).map(a => ({ y: a.cpm, label: fmt(a.t) })), "")}
+      ${weakest.length ? `<h3>${T("Characters", "Words")} that slip most often</h3><div class="deck-list">${weakest.map(([c, n]) => `<span>${esc(c)}<small>×${n}</small></span>`).join("")}</div>` : ""}
+      <h3>Recent readings</h3>
+      <table class="hist"><tr><th>When</th><th>Accuracy</th><th>Speed</th><th>Slips</th><th>Passage</th></tr>
+        ${h.slice(-8).reverse().map(a => `<tr><td>${fmt(a.t)}</td><td>${a.accuracy}%</td><td>${a.cpm || "–"}</td><td>${a.errors}${a.pauses ? ` · ⏸${a.pauses}` : ""}</td><td>${esc(a.title || "—")}</td></tr>`).join("")}</table>
+      <div class="bar"><button id="exportBtn">⬇ Export CSV</button><span class="muted">Since ${date(h[0].t)} · saved only in this browser</span></div>`;
+    $("exportBtn").onclick = () => {
+      const rows = [["time", "language", "accuracy", "per_minute", "read", "errors", "tone_slips", "pauses", "passage", "missed"],
+        ...h.map(a => [new Date(a.t).toISOString(), a.lang, a.accuracy, a.cpm ?? "", a.read, a.errors, a.tone_slips, a.pauses, `"${(a.title || "").replace(/"/g, "'")}"`, a.missed.join(" ")])];
+      const url = URL.createObjectURL(new Blob(["﻿" + rows.map(r => r.join(",")).join("\n")], { type: "text/csv" }));
+      Object.assign(document.createElement("a"), { href: url, download: "maomao-progress.csv" }).click();
+    };
+  }
+  card.scrollIntoView({ behavior: "smooth" });
+};
+$("progressBody").addEventListener("mousemove", e => {
+  const t = $("tooltip"), hit = e.target.closest(".hit");
+  if (hit) { t.innerHTML = hit.dataset.tip; t.style.display = "block"; t.style.left = e.clientX + 12 + "px"; t.style.top = e.clientY + 14 + "px"; }
+  else t.style.display = "none";
+});
+</script>
+</body>
+</html>

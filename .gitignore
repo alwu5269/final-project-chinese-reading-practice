@@ -1,0 +1,7 @@
+.venv/
+.env
+__pycache__/
+output/*.jsonl
+.DS_Store
+output/browser-profile/
+output/browser-cache/

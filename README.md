@@ -1,0 +1,83 @@
+# 猫猫读 MaoMao Read
+
+A cat-themed Chinese reading coach. Find an article picked for your level and interests, or bring your own text, read it out loud, and see exactly which characters you misread, read with the wrong tone, or skipped. Built for heritage speakers who speak Chinese at home but read it less well.
+
+## How it works
+
+The desktop app is one window: **a real web browser on the left, Coach Mao on the right.** You read directly on the web page: press **🐾 Read on this page**, click any paragraph, read it aloud, and your mistakes are colored right on the page (hover to see what Mao heard). Suggested articles open in the browser pane, ready to read. `static/page_reader.js` is injected into the page for this.
+
+There are two ways to choose what to read:
+- **✨ Find me something.** Pick a category (News, Kids' stories, Science & tech, Food & recipes, Culture & life, Sports, Encyclopedia), your HSK level and interests. The **Finder** agent (`gpt-6-luna` with web search, low reasoning effort, at most 2 searches) searches only the curated sites for that category in `sources.py` (for example BBC 中文, VOA, DW, 联合早报 for news; 国语日报 for kids' stories; 泛科学 and 国家地理 for science; 下厨房 for recipes). Each site was checked to load and give clean article text. Suggestions are prefetched in the background when your profile changes; the server opens every link itself and drops dead, private, or non-Chinese pages, then asks the Finder once more if fewer than 2 survive (at most 2 rounds). Or the **Writer** agent writes a short story at your level, which helps at HSK 1–2, where real articles are too hard.
+- **📖 I have my own.** Paste text, import a link, or browse in the desktop window's browser pane.
+
+1. **Prepare.** The Leveler agent (`gpt-6-luna`) translates the passage and estimates its HSK level. Pinyin comes from the `pypinyin` library, not the AI.
+2. **Read.** Your recording is transcribed by Whisper running locally on your computer (`faster-whisper`, model `small`). Audio never leaves the machine.
+3. **Score.** `scoring.py` lines up the transcript with the text character by character, with no AI involved. Same sound counts as correct; same syllable with a different tone is a tone error; a different syllable is a misread; a missing character is skipped; text after where you stopped is "not read yet."
+4. **Coach.** The Coach agent (`gpt-6-luna`) explains the flagged characters and writes practice sentences that reuse them.
+5. **Tone check (no AI).** Speech-to-text auto-corrects tones, so the app also compares the *pitch shape* of each character with a native reading of the same passage: the native voice is lined up with your recording by dynamic time warping (DTW) on MFCC features, and Praat (`parselmouth`) measures both pitch contours. Only clear mismatches are flagged (e.g. rising where it should fall); hover a flagged character to see both contours. The native reading comes from the online neural voice, so without internet the tone check is skipped and everything else still works. See `tones.py`.
+6. **Hesitations.** Whisper's word timings show where you paused mid-phrase (not at punctuation); those characters get an orange marker.
+7. **Tap for meaning.** Tap any character (in the panel or in the passage on the web page) to see the dictionary word around it, pinyin and meanings from the offline CC-CEDICT dictionary, hear it, or add it to your review deck. See `dictionary.py`.
+8. **Progress.** Every checked reading is saved; **📈 Progress** shows accuracy and speed over time, your most-missed characters, recent readings, and a CSV export.
+9. **Review deck.** Every tone error or misread is saved (in the reader's browser storage) with a short phrase around it. **Review deck** quizzes you by reading the phrase aloud, scored by the same code with no AI tokens used. Cards come back after 1, 3, 7 and 21 days (Leitner boxes).
+
+Token usage for every agent call is appended to `output/usage_log.jsonl`.
+
+## English mode (for graders)
+
+Don't read Chinese? Click **English** in the top-right corner. Everything works the same way in English: find articles (BBC, NPR, Storynory, Smithsonian, NASA, Science News Explores, BBC Good Food, Simple English Wikipedia), paste your own text, read in the desktop browser pane, coaching, and the review deck. Scoring is per word instead of per character (no tones), the level is shown as CEFR (A1–C2), and translations go into Chinese. Try the **Tricky words** and **Safety test** samples under *I have my own → Try a sample*.
+
+## Run it locally
+
+Requires Python 3.11+ and a microphone. The first recording downloads the Whisper model once (about 480 MB).
+
+1. Clone the repo and enter the folder:
+   ```bash
+   git clone <repo-url> read-aloud && cd read-aloud
+   ```
+2. Put a `.env` file with your key either in this folder or **one level above it**. See `.env.example` for the key name (`PORTKEY_API_KEY`, or `OPENAI_API_KEY`).
+3. Create a virtual environment and install dependencies:
+   ```bash
+   python3 -m venv .venv
+   .venv/bin/pip install -r requirements.txt
+   ```
+   On Windows use `.venv\Scripts\pip` and `.venv\Scripts\python`.
+4. Start the desktop app:
+   ```bash
+   .venv/bin/python desktop.py
+   ```
+   On macOS, allow microphone access for your terminal when asked.
+5. Pick a suggested article (or browse to any Chinese page and press **🐾 Read on this page**), click a paragraph, press **Start reading**, read it, and press **Stop and check**.
+
+Note: some networks (VPNs, campus DNS filters) block mainland-China websites. The Finder prefers sources that work internationally and retries when links fail.
+
+**Without the desktop window:** `.venv/bin/uvicorn app:app --port 8000` and open http://localhost:8000 in any browser; paste text or import an article by link. To test without a microphone, open "Type what you read instead". For a faster but less accurate speech model set `WHISPER_MODEL=base` in `.env`.
+
+## Safety
+
+- Scores are computed by code (`scoring.py`), so pasted text cannot convince the AI to report 100%.
+- Passages are sent to the agents as JSON data, and the prompts tell the agents never to follow instructions inside them. Agents flag such text (`suspicious_instructions`) and the UI shows a warning.
+- The provider's content filter blocks blatant jailbreak text; the app shows a clear message instead of crashing.
+- The Finder can only search the curated sites (search-tool domain filter), and the server drops any link outside `sources.py`.
+- Finder links are never trusted: each one is downloaded and checked before it is shown, and the retry loop is capped at 2 rounds.
+- Article import only fetches public web addresses (localhost and private networks are blocked), with a size limit and timeout.
+- Reading mode never follows links or runs page instructions; the page's text only goes to the agents as data. Only the coach pane gets the microphone; the browser pane's permission requests are denied.
+- Recordings stay in server memory only (last 20) so tones can be checked; nothing is written to disk. Saved progress and the review deck live in the app's own browser storage (`output/browser-profile/`, git-ignored).
+- Passages are limited to 600 characters, and each server session stops making AI calls after 200,000 tokens.
+- Try the two "Safety test" samples to see these defenses work.
+
+## Files
+
+- `desktop.py`: the desktop window (browser + coach) and the bridge between them
+- `static/page_reader.js`: in-page reading mode (passages and colored mistakes on the web page)
+- `app.py`: FastAPI server and API routes
+- `speech.py`: local Whisper transcription with word timings
+- `tones.py`: pitch-based tone check (DTW alignment to a native reading) and pause detection
+- `dictionary.py`: offline CC-CEDICT lookups for tap-for-meaning
+- `fetcher.py`: article import and passage splitting
+- `sources.py`: the curated news and story sites
+- `voice.py`: natural Mandarin voice for "Hear it" (Microsoft Edge neural voice via `edge-tts`; sends only the text to be spoken)
+- `agents.py`: Leveler, Coach, Finder and Writer agents, `.env` lookup, token logging and budget
+- `scoring.py`: deterministic character alignment and stats
+- `prompts/`: agent instructions (`prompts/en/` for English mode)
+- `samples/samples.json`, `samples/samples_en.json`: practice passages and safety tests
+- `static/index.html`: the whole front end
