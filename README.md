@@ -10,7 +10,7 @@ There are two ways to choose what to read:
 - **✨ Find me something.** Pick a category (News, Kids' stories, Science & tech, Food & recipes, Culture & life, Sports, Encyclopedia), your HSK level and interests. The **Finder** agent (`gpt-6-luna` with web search, low reasoning effort, at most 2 searches) searches only the curated sites for that category in `sources.py` (for example BBC 中文, VOA, DW, 联合早报 for news; 国语日报 for kids' stories; 泛科学 and 国家地理 for science; 下厨房 for recipes). Each site was checked to load and give clean article text. Suggestions are prefetched in the background when your profile changes; the server opens every link itself and drops dead, private, or non-Chinese pages, then asks the Finder once more if fewer than 2 survive (at most 2 rounds). Or the **Writer** agent writes a short story at your level, which helps at HSK 1–2, where real articles are too hard.
 - **📖 I have my own.** Paste text, import a link, or browse in the desktop window's browser pane.
 
-1. **Prepare.** The Leveler agent (`gpt-6-luna`) translates the passage and estimates its HSK level. Pinyin comes from the `pypinyin` library, not the AI.
+1. **Prepare.** The Leveler agent (`gpt-6-luna`) translates the passage. Its HSK level is measured by code (`levels.py`) against the official HSK 2.0 word list, not guessed by the AI; found articles are labeled and sorted by that measured level. Pinyin comes from the `pypinyin` library, not the AI.
 2. **Read.** Your recording is transcribed by Whisper running locally on your computer (`faster-whisper`, model `small`). Audio never leaves the machine.
 3. **Score.** `scoring.py` lines up the transcript with the text character by character, with no AI involved. Same sound counts as correct; same syllable with a different tone is a tone error; a different syllable is a misread; a missing character is skipped; text after where you stopped is "not read yet."
 4. **Coach.** The Coach agent (`gpt-6-luna`) explains the flagged characters and writes practice sentences that reuse them.
@@ -73,6 +73,7 @@ Note: some networks (VPNs, campus DNS filters) block mainland-China websites. Th
 - `speech.py`: local Whisper transcription with word timings
 - `tones.py`: pitch-based tone check (DTW alignment to a native reading) and pause detection
 - `dictionary.py`: offline CC-CEDICT lookups for tap-for-meaning
+- `levels.py` and `data/hsk_words.json`: measured HSK level (official HSK 2.0 word list, from drkameleon/complete-hsk-vocabulary, MIT licence)
 - `fetcher.py`: article import and passage splitting
 - `sources.py`: the curated news and story sites
 - `voice.py`: natural Mandarin voice for "Hear it" (Microsoft Edge neural voice via `edge-tts`; sends only the text to be spoken)

@@ -363,9 +363,9 @@ $("findBtn").onclick = async () => {
     prefetch = null;  // next click looks for new articles
     found = d.articles;
     const dropped = d.rounds.reduce((n, r) => n + r.dropped, 0);
-    $("findResults").innerHTML = found.length ? `<div class="results">${found.map((a, i) => `
+    $("findResults").innerHTML = found.length ? `${d.too_hard ? `<div class="flag">📏 Real articles on these sites measure ${LEVEL(found[0].measured_hsk)} or above, harder than ${LEVEL(profile.level)}. For text at your level, try <b>✍️ Write me a story</b>.</div>` : ""}<div class="results">${found.map((a, i) => `
       <button class="result" data-i="${i}">
-        <span class="pill">${LEVEL(a.estimated_hsk)}</span><span class="pill soft">${esc(a.source)}</span>${a.script === "traditional" ? '<span class="pill soft">繁體</span>' : ""}
+        <span class="pill" title="${a.measured_hsk ? "Measured against the HSK word list" : "Estimated by Mao"}">${LEVEL(a.measured_hsk || a.estimated_hsk)}</span><span class="pill soft">${esc(a.source)}</span>${a.script === "traditional" ? '<span class="pill soft">繁體</span>' : ""}
         <b>${esc(a.title)}</b><small>${esc(a.why)} · ${a.passages.length} passage${a.passages.length === 1 ? "" : "s"}</small>
       </button>`).join("")}</div>
       ${dropped ? `<p class="muted">🐾 Mao checked every link and skipped ${dropped} that didn't open or had no ${T("Chinese", "English")} article.</p>` : ""}`
@@ -461,7 +461,7 @@ async function prepare(text) {
     const d = await api("/api/prepare", { text, lang: LANG, script: SCRIPT() });
     current = { text: d.text, chars: d.chars };
     $("levelBox").innerHTML =
-      `<span class="pill">${LEVEL(d.hsk_level)}</span><span class="muted">${esc(d.level_reason)}</span>
+      `<span class="pill">${LEVEL(d.hsk_level)}</span>${d.known ? `<span class="pill soft" title="Measured against the official HSK 2.0 word list">${Math.round(d.known[profile.level - 1] * 100)}% of characters within ${LEVEL(profile.level)}</span>` : ""}<span class="muted">${esc(d.level_reason)}</span>
        <details style="margin-top:8px"><summary class="muted">${T("English translation", "Summary")}</summary><div class="translation">${esc(d.translation)}</div></details>
        ${d.suspicious_instructions ? `<div class="flag">⚠️ This text contains instructions aimed at the AI. Mao ignored them.</div>` : ""}`;
     renderReading();

@@ -12,6 +12,7 @@ from pydantic import BaseModel
 import agents
 import dictionary
 import fetcher
+import levels
 import scoring
 import script
 import sources
@@ -94,7 +95,11 @@ def prepare(body: PrepareIn):
     text = check_text(body.text, lang)
     if lang == "zh":
         text = script.convert(text, body.script)
-    return {"text": text, "chars": scoring.annotate(text, lang), **run_agent(agents.prepare, text, lang)}
+    out = {"text": text, "chars": scoring.annotate(text, lang), **run_agent(agents.prepare, text, lang)}
+    if lang == "zh":  # the level shown is measured against the HSK word list, not the AI's guess
+        m = levels.measure(text)
+        out.update(hsk_level=m["hsk"] or out["hsk_level"], known=m["known"])
+    return out
 
 
 @app.post("/api/score")
@@ -164,7 +169,10 @@ def verify(article: dict, lang: str = "zh") -> dict | None:
         page = fetcher.fetch_article(article["url"], timeout=5, lang=lang)  # slow sites are dropped, not waited on
     except fetcher.FetchError:
         return None
-    return {**article, "title": article["title"] or page["title"], "passages": page["passages"]}
+    article = {**article, "title": article["title"] or page["title"], "passages": page["passages"]}
+    if lang == "zh":
+        article["measured_hsk"] = levels.measure("".join(page["passages"]))["hsk"]
+    return article
 
 
 def convert_article(a: dict, to: str) -> dict:
@@ -195,16 +203,25 @@ def find(body: ProfileIn):
             break
         unreachable += bad
         exclude += [a["url"] for a in articles]
-    if lang == "zh" and body.script:
-        articles = [convert_article(a, body.script) for a in articles]
-    return {"articles": articles, "rounds": rounds}
+    too_hard = False
+    if lang == "zh":  # closest measured level first; say so when the sites have nothing near this level
+        articles.sort(key=lambda a: abs(a["measured_hsk"] - level))
+        too_hard = bool(articles) and all(a["measured_hsk"] > level + 1 for a in articles)
+        if body.script:
+            articles = [convert_article(a, body.script) for a in articles]
+    return {"articles": articles, "rounds": rounds, "too_hard": too_hard}
 
 
 @app.post("/api/story")
 def story(body: ProfileIn):
     level, interests = clean_profile(body)
-    out = run_agent(agents.write_story, level, interests, clean_lang(body.lang))
+    lang = clean_lang(body.lang)
+    out = run_agent(agents.write_story, level, interests, lang)
+    if lang == "zh" and levels.measure(out["story"])["hsk"] > level + 1:  # one retry if it came out too hard
+        out = run_agent(agents.write_story, level, interests, lang)
     out["story"] = out["story"][: agents.MAX_TEXT_CHARS]
+    if lang == "zh":
+        out["measured_hsk"] = levels.measure(out["story"])["hsk"]
     return out
 
 
