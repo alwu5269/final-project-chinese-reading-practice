@@ -32,7 +32,7 @@ Requires Python 3.11+ and a microphone. The first recording downloads the Whispe
 
 1. Clone the repo and enter the folder:
    ```bash
-   git clone <repo-url> read-aloud && cd read-aloud
+   git clone https://github.com/alwu5269/final-project-chinese-reading-practice.git && cd final-project-chinese-reading-practice
    ```
 2. Put a `.env` file with your key either in this folder or **one level above it**. See `.env.example` for the key name (`PORTKEY_API_KEY`, or `OPENAI_API_KEY`).
 3. Create a virtual environment and install dependencies:
