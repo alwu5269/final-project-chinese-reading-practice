@@ -4,8 +4,9 @@ import logging
 import re
 from functools import lru_cache
 
-logging.getLogger().setLevel(logging.WARNING)  # hanzipy logs every load step at DEBUG
-from hanzipy.dictionary import HanziDictionary  # noqa: E402
+from hanzipy.dictionary import HanziDictionary
+
+logging.getLogger().setLevel(logging.WARNING)  # hanzipy turns on DEBUG logging for everything when imported
 
 _dict = None
 TONE_MARKS = {"a": "āáǎà", "e": "ēéěè", "i": "īíǐì", "o": "ōóǒò", "u": "ūúǔù", "ü": "ǖǘǚǜ"}
