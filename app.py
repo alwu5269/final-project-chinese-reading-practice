@@ -1,7 +1,8 @@
 """MaoMao Read: read Chinese (or English, for testers) aloud and see which characters or words you misread."""
 
 import json
-from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, wait
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 
 import agents
 import dictionary
+import feeds
 import fetcher
 import levels
 import scoring
@@ -159,17 +161,34 @@ def clean_profile(body: ProfileIn) -> tuple[int, list[str]]:
     return max(1, min(body.level, 6)), defaults.get(body.kind, defaults[""])
 
 
+@lru_cache(maxsize=512)
+def open_page(url: str, lang: str) -> dict | None:
+    """Download in a thread; pull the article text out in a helper process, so several pages are
+    cleaned up truly in parallel (text extraction is CPU work that Python threads can't share)."""
+    try:
+        html = fetcher.fetch_text(url, timeout=5)  # slow sites are dropped, not waited on
+        return extractor().submit(fetcher.article_from_html, html, url, lang).result(timeout=10)
+    except Exception:
+        return None
+
+
+@lru_cache(maxsize=1)
+def extractor() -> ProcessPoolExecutor:
+    return ProcessPoolExecutor(4)
+
+
 def verify(article: dict, lang: str = "zh") -> dict | None:
-    """Open each suggested link ourselves: drops off-list, invented, dead, private or wrong-language pages."""
+    """Open each candidate link ourselves: drops off-list, dead, private or wrong-language pages."""
     source = sources.source_of(article["url"], lang)
     if not source:
         return None
     article = {**article, "source": source["name"], "script": source["script"]}
-    try:
-        page = fetcher.fetch_article(article["url"], timeout=5, lang=lang)  # slow sites are dropped, not waited on
-    except fetcher.FetchError:
+    page = open_page(article["url"], lang)
+    if not page or not page["passages"]:
         return None
-    article = {**article, "title": article["title"] or page["title"], "passages": page["passages"]}
+    # list pages and short feed titles give poor titles; the page's own title is better there
+    title = article["title"] if len(article["title"]) >= 4 and "page" not in source else page["title"] or article["title"]
+    article = {**article, "title": title, "passages": page["passages"]}
     if lang == "zh":
         article["measured_hsk"] = levels.measure("".join(page["passages"]))["hsk"]
     return article
@@ -184,38 +203,54 @@ def convert(body: ConvertIn):
     return {"text": script.convert(body.text[:200_000], body.script)}
 
 
+FIND_CANDIDATES = 12  # links opened per search
+OPEN_DEADLINE = 8     # seconds to wait for those pages; the rest are skipped this time
+POOL = ThreadPoolExecutor(32)
+POOL.submit(feeds.warm)  # read every site's feed in the background at startup (no AI, no tokens)
+POOL.submit(lambda: extractor().submit(len, "").result())  # start the text-extraction helpers early
+SNIPPET_CHARS = 80    # opening characters of each candidate shown to the Finder
+
+
 @app.post("/api/find")
 def find(body: ProfileIn):
     level, interests = clean_profile(body)
     lang = clean_lang(body.lang)
     kind = body.kind if body.kind in sources.for_lang(lang) else "news"
-    exclude, unreachable, articles, rounds = body.exclude[-20:], [], [], []
-    for _ in range(agents.FIND_MAX_ROUNDS):  # bounded retry loop: the agent can never search forever
-        found = run_agent(agents.find_articles, level, interests, kind, exclude, unreachable, lang)
-        with ThreadPoolExecutor(8) as pool:
-            checked = list(pool.map(lambda a: verify(a, lang), found["articles"]))
-        bad = [a["url"] for a, ok in zip(found["articles"], checked) if not ok]
-        for a in checked:  # skip duplicates (same link or same title)
-            if a and all(a["url"] != x["url"] and a["title"] != x["title"] for x in articles):
-                articles.append(a)
-        rounds.append({"suggested": len(checked), "dropped": len(bad), "usage": found["_usage"]})
-        if len(articles) >= 2:
-            break
-        unreachable += bad
-        exclude += [a["url"] for a in articles]
-    too_hard = False
-    if lang == "zh":  # closest measured level first; say so when the sites have nothing near this level
-        articles.sort(key=lambda a: abs(a["measured_hsk"] - level))
-        too_hard = bool(articles) and all(a["measured_hsk"] > level + 1 for a in articles)
+    # 1. Code: newest links from the category's sites (feeds.py), opened and measured. No AI yet.
+    links = feeds.candidates(kind, lang, body.exclude[-30:])[:FIND_CANDIDATES]
+    jobs = [POOL.submit(verify, a, lang) for a in links]
+    wait(jobs, timeout=OPEN_DEADLINE)  # pages still loading are skipped this time (and cached for next time)
+    checked = []
+    for job in jobs:  # skip failures, late pages and duplicates (same title)
+        a = job.result() if job.done() else None
+        if a and all(a["title"] != x["title"] for x in checked):
+            checked.append(a)
+    # Real sites rarely have HSK 1-3 text: then a story written at this level leads the list
+    too_hard = lang == "zh" and all(a["measured_hsk"] > level + 1 for a in checked)
+    story_job = POOL.submit(written_story, level, interests, lang) if too_hard else None
+    # 2. Finder agent: picks the best few for this learner from titles, snippets and measured levels
+    articles, rounds = [], [{"suggested": len(links), "dropped": len(links) - len(checked)}]
+    if checked:
+        menu = [{"id": i, "title": a["title"][:80], "source": a["source"], "snippet": a["passages"][0][:SNIPPET_CHARS],
+                 **({"measured_hsk": a["measured_hsk"]} if lang == "zh" else {})} for i, a in enumerate(checked)]
+        found = run_agent(agents.find_articles, level, interests, kind, menu, lang)
+        rounds[0]["usage"] = found["_usage"]
+        for p in found["picks"]:
+            if 0 <= p["id"] < len(checked) and checked[p["id"]] not in articles:  # ids outside the list are ignored
+                articles.append({**checked[p["id"]], "why": p["why"], "estimated_hsk": p["estimated_level"]})
+    if lang == "zh":
+        articles.sort(key=lambda a: abs(a["measured_hsk"] - level))  # closest measured level first
+        if story_job:
+            s = story_job.result()
+            articles.insert(0, {"title": f"{s['title']} · {s['english_title']}", "url": "", "source": "Written by Mao",
+                                "script": "simplified", "why": "A short story written at your level for this category.",
+                                "passages": [s["story"]], "measured_hsk": s["measured_hsk"]})
         if body.script:
             articles = [convert_article(a, body.script) for a in articles]
     return {"articles": articles, "rounds": rounds, "too_hard": too_hard}
 
 
-@app.post("/api/story")
-def story(body: ProfileIn):
-    level, interests = clean_profile(body)
-    lang = clean_lang(body.lang)
+def written_story(level: int, interests: list[str], lang: str) -> dict:
     out = run_agent(agents.write_story, level, interests, lang)
     if lang == "zh" and levels.measure(out["story"])["hsk"] > level + 1:  # one retry if it came out too hard
         out = run_agent(agents.write_story, level, interests, lang)
@@ -223,6 +258,12 @@ def story(body: ProfileIn):
     if lang == "zh":
         out["measured_hsk"] = levels.measure(out["story"])["hsk"]
     return out
+
+
+@app.post("/api/story")
+def story(body: ProfileIn):
+    level, interests = clean_profile(body)
+    return written_story(level, interests, clean_lang(body.lang))
 
 
 @app.get("/api/define")

@@ -36,6 +36,11 @@ def check_url(url: str) -> str:
 
 
 def fetch_article(url: str, timeout: float = 10, lang: str = "zh") -> dict:
+    return article_from_html(fetch_text(url, timeout), url, lang)
+
+
+def fetch_text(url: str, timeout: float = 10) -> str:
+    """Download a page or feed, with the same private-address checks before and after redirects."""
     url = check_url(url)
     safe_url = quote(url, safe=":/?#[]@!$&'()*+,;=%~")  # percent-encode Chinese characters in the path
     req = Request(safe_url, headers={"User-Agent": "Mozilla/5.0 (ReadAloud study app)"})
@@ -49,7 +54,7 @@ def fetch_article(url: str, timeout: float = 10, lang: str = "zh") -> dict:
         raise FetchError("Could not download that page.")
     if len(html) > MAX_BYTES:
         raise FetchError("That page is too large.")
-    return article_from_html(html.decode("utf-8", errors="replace"), url, lang)
+    return html.decode("utf-8", errors="replace")
 
 
 def article_from_html(html: str, url: str, lang: str = "zh") -> dict:

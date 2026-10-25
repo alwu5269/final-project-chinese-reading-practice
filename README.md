@@ -7,7 +7,7 @@ A cat-themed Chinese reading coach. Find an article picked for your level and in
 The desktop app is one window: **a real web browser on the left, Coach Mao on the right.** You read directly on the web page: press **🐾 Read on this page**, click any paragraph, read it aloud, and your mistakes are colored right on the page (hover to see what Mao heard). Suggested articles open in the browser pane, ready to read. `static/page_reader.js` is injected into the page for this.
 
 There are two ways to choose what to read:
-- **✨ Find me something.** Pick a category (News, Kids' stories, Science & tech, Food & recipes, Culture & life, Sports, Encyclopedia), your HSK level and interests. The **Finder** agent (`gpt-6-luna` with web search, low reasoning effort, at most 2 searches) searches only the curated sites for that category in `sources.py` (for example BBC 中文, VOA, DW, 联合早报 for news; 国语日报 for kids' stories; 泛科学 and 国家地理 for science; 下厨房 for recipes). Each site was checked to load and give clean article text. Suggestions are prefetched in the background when your profile changes; the server opens every link itself and drops dead, private, or non-Chinese pages, then asks the Finder once more if fewer than 2 survive (at most 2 rounds). Or the **Writer** agent writes a short story at your level, which helps at HSK 1–2, where real articles are too hard.
+- **✨ Find me something.** Pick a category (News, Kids' stories, Science & tech, Food & recipes, Culture & life, Sports, Encyclopedia) and your HSK level. Code reads the newest article links from each curated site in `sources.py` (its RSS feed, its "latest" list page, or Wikipedia's featured articles; see `feeds.py`), opens up to 12 of them, and measures each one's HSK level. The **Finder** agent (`gpt-6-luna`, no web search) then picks the best 4 from their titles, opening lines and measured levels, and says why each fits. This takes about 1–2k tokens per search, down from about 17k when the Finder ran its own web searches. When every article is far above your level (usual at HSK 1–3), the **Writer** agent's story at your level leads the list.
 - **📖 I have my own.** Paste text, import a link, or browse in the desktop window's browser pane.
 
 1. **Prepare.** The Leveler agent (`gpt-6-luna`) translates the passage. Its HSK level is measured by code (`levels.py`) against the official HSK 2.0 word list, not guessed by the AI; found articles are labeled and sorted by that measured level. Pinyin comes from the `pypinyin` library, not the AI.
@@ -48,7 +48,7 @@ Requires Python 3.11+ and a microphone. The first recording downloads the Whispe
    On macOS, allow microphone access for your terminal when asked.
 5. Pick a suggested article (or browse to any Chinese page and press **🐾 Read on this page**), click a paragraph, press **Start reading**, read it, and press **Stop and check**.
 
-Note: some networks (VPNs, campus DNS filters) block mainland-China websites. The Finder prefers sources that work internationally and retries when links fail.
+Note: some networks (VPNs, campus DNS filters) block mainland-China websites. The curated sources were chosen to work internationally; links that don't open are skipped.
 
 **Without the desktop window:** `.venv/bin/uvicorn app:app --port 8000` and open http://localhost:8000 in any browser; paste text or import an article by link. To test without a microphone, open "Type what you read instead". For a faster but less accurate speech model set `WHISPER_MODEL=base` in `.env`.
 
@@ -57,8 +57,8 @@ Note: some networks (VPNs, campus DNS filters) block mainland-China websites. Th
 - Scores are computed by code (`scoring.py`), so pasted text cannot convince the AI to report 100%.
 - Passages are sent to the agents as JSON data, and the prompts tell the agents never to follow instructions inside them. Agents flag such text (`suspicious_instructions`) and the UI shows a warning.
 - The provider's content filter blocks blatant jailbreak text; the app shows a clear message instead of crashing.
-- The Finder can only search the curated sites (search-tool domain filter), and the server drops any link outside `sources.py`.
-- Finder links are never trusted: each one is downloaded and checked before it is shown, and the retry loop is capped at 2 rounds.
+- The Finder never browses: it only chooses among links the app read from the curated sites, by id. Any id outside the list is ignored.
+- Every link is downloaded and checked (allowed site, public address, real article text) before the Finder sees it.
 - Article import only fetches public web addresses (localhost and private networks are blocked), with a size limit and timeout.
 - Reading mode never follows links or runs page instructions; the page's text only goes to the agents as data. Only the coach pane gets the microphone; the browser pane's permission requests are denied.
 - Recordings stay in server memory only (last 20) so tones can be checked; nothing is written to disk. Saved progress and the review deck live in the app's own browser storage (`output/browser-profile/`, git-ignored).
@@ -77,6 +77,7 @@ Note: some networks (VPNs, campus DNS filters) block mainland-China websites. Th
 - `fetcher.py`: article import and passage splitting
 - `sources.py`: the curated news and story sites
 - `voice.py`: natural Mandarin voice for "Hear it" (Microsoft Edge neural voice via `edge-tts`; sends only the text to be spoken)
+- `feeds.py`: newest article links from each curated site (RSS, list page or Wikipedia), cached 15 minutes
 - `agents.py`: Leveler, Coach, Finder and Writer agents, `.env` lookup, token logging and budget
 - `scoring.py`: deterministic character alignment and stats
 - `prompts/`: agent instructions (`prompts/en/` for English mode)

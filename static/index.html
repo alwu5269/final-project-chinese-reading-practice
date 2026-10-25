@@ -112,9 +112,10 @@
   .in-page .page-note { display: block; }
   .lang { display: inline-flex; border: 2px solid var(--line); border-radius: 999px; overflow: hidden; margin-left: auto; }
   .lang button { border: 0; border-radius: 0; padding: 6px 12px; box-shadow: none; white-space: nowrap; }
-  .lang, #reviewBtn, #progressBtn { flex: none; white-space: nowrap; }
+  .lang, #reviewBtn, #progressBtn, #browserBtn { flex: none; white-space: nowrap; }
   header { flex-wrap: wrap; } .brand { flex: 1 1 260px; }
   .lang button.on { background: var(--accent); color: #fff; }
+  #browserBtn.on { background: var(--accent-soft); border-color: var(--accent); }
   .lang-en .zh-only { display: none !important; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
   .tile { background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 10px 14px; }
@@ -154,6 +155,7 @@
     <p id="tagline">Read Chinese out loud. Mao listens and shows which characters slipped.</p>
   </div>
   <div class="lang" title="English mode is for testers who don't read Chinese"><button data-lang="zh">中文</button><button data-lang="en">English</button></div>
+  <button id="browserBtn" class="hidden" title="Show or hide the web browser on the left">🌐&nbsp; Browser</button>
   <button id="progressBtn" title="Your reading over time">📈&nbsp; Progress</button>
   <button id="reviewBtn" title="Things you misread before">🐟&nbsp; Review<span class="badge" id="dueBadge">0</span></button>
 </header>
@@ -312,6 +314,7 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
   document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
   $("findPane").classList.toggle("hidden", t.dataset.mode !== "find");
   $("ownPane").classList.toggle("hidden", t.dataset.mode !== "own");
+  if (t.dataset.mode === "own") setBrowsing(true);  // "I have my own" starts with browsing a site on the left
 });
 
 // Reading profile, remembered in this browser
@@ -363,7 +366,7 @@ $("findBtn").onclick = async () => {
     prefetch = null;  // next click looks for new articles
     found = d.articles;
     const dropped = d.rounds.reduce((n, r) => n + r.dropped, 0);
-    $("findResults").innerHTML = found.length ? `${d.too_hard ? `<div class="flag">📏 Real articles on these sites measure ${LEVEL(found[0].measured_hsk)} or above, harder than ${LEVEL(profile.level)}. For text at your level, try <b>✍️ Write me a story</b>.</div>` : ""}<div class="results">${found.map((a, i) => `
+    $("findResults").innerHTML = found.length ? `${d.too_hard ? `<div class="flag">📏 Real articles on these sites are harder than ${LEVEL(profile.level)}, so Mao wrote you a story at your level first. The real articles below are good stretch reading.</div>` : ""}<div class="results">${found.map((a, i) => `
       <button class="result" data-i="${i}">
         <span class="pill" title="${a.measured_hsk ? "Measured against the HSK word list" : "Estimated by Mao"}">${LEVEL(a.measured_hsk || a.estimated_hsk)}</span><span class="pill soft">${esc(a.source)}</span>${a.script === "traditional" ? '<span class="pill soft">繁體</span>' : ""}
         <b>${esc(a.title)}</b><small>${esc(a.why)} · ${a.passages.length} passage${a.passages.length === 1 ? "" : "s"}</small>
@@ -377,8 +380,8 @@ $("findResults").onclick = e => {
   const b = e.target.closest(".result"); if (!b) return;
   const a = found[+b.dataset.i];
   profile.seen = [...profile.seen, a.url].slice(-30); saveProfile();
-  if (DESKTOP) {  // open the real page on the left and read it there
-    toDesktop({ type: "open", url: a.url });
+  if (DESKTOP && a.url) {  // open the real page on the left and read it there
+    toDesktop({ type: "open", url: a.url }); setBrowsing(true);
     $("findResults").querySelectorAll(".result").forEach(x => x.style.opacity = x === b ? 1 : .5);
     return;
   }
@@ -414,19 +417,35 @@ $("url").onkeydown = e => { if (e.key === "Enter") $("fetchBtn").click(); };
 let article = null, passageIdx = 0;
 let inPage = false, DESKTOP = false;
 const setInPage = v => { inPage = v; $("readCard").classList.toggle("in-page", v); };
-window.loadFromBrowser = text => { setInPage(false); article = null; $("nav").classList.add("hidden"); prepare(text.trim().slice(0, 600)); };
-window.loadArticle = a => { if (a.error) return showError(a.error); setInPage(false); article = a; showPassage(0); };
+window.loadFromBrowser = text => { setInPage(false); setBrowsing(false); article = null; $("nav").classList.add("hidden"); prepare(text.trim().slice(0, 600)); };
+window.loadArticle = a => { if (a.error) return showError(a.error); setInPage(false); setBrowsing(false); article = a; showPassage(0); };
 
 // ---------- Desktop app: reading happens on the real web page (left pane) ----------
 const toDesktop = msg => console.log("MAOMAO:" + JSON.stringify(msg));
+// The browser pane shows only while it is in use: hidden for stories, pasted text, Review and Progress
+let browsing = true;
+function syncBrowser() {
+  if (!DESKTOP) return;
+  const show = browsing && $("reviewCard").classList.contains("hidden") && $("progressCard").classList.contains("hidden");
+  $("browserBtn").classList.toggle("on", show);
+  toDesktop({ type: "browser", show });
+}
+function setBrowsing(v) { browsing = v; syncBrowser(); }
+$("browserBtn").onclick = () => {
+  if (browsing && !$("browserBtn").classList.contains("on")) {  // hidden by Review/Progress: close them
+    $("reviewCard").classList.add("hidden"); $("progressCard").classList.add("hidden"); return syncBrowser();
+  }
+  setBrowsing(!browsing);
+};
 window.desktopMode = () => {
   DESKTOP = true;
+  $("browserBtn").classList.remove("hidden"); syncBrowser();
   toDesktop({ type: "lang", lang: LANG, script: SCRIPT() });
   document.querySelector('[data-mode="own"] span').textContent = `Browse any ${T("Chinese", "English")} site on the left, then press 🐾 Read on this page`;
   $("ownPane").insertAdjacentHTML("afterbegin", `<div class="flag" style="margin-bottom:6px">👈 Tip: in the desktop app you can read straight on the web page. Open any site on the left and press <b>🐾 Read on this page</b>.</div>`);
 };
 window.desktopPassage = m => {
-  setInPage(true); article = null;
+  setInPage(true); setBrowsing(true); article = null;
   $("nav").classList.remove("hidden");
   $("prevBtn").classList.remove("hidden"); $("nextPassBtn").classList.remove("hidden");
   $("navPos").textContent = `${m.index + 1} / ${m.total}`;
@@ -663,6 +682,7 @@ const cardKey = c => c.lang ? `${c.lang}|${c.ch}|${c.phrase}` : `${c.ch}|${c.phr
 let reviewQueue = [];
 $("reviewBtn").onclick = () => {
   $("reviewCard").classList.toggle("hidden");
+  syncBrowser();
   if (!$("reviewCard").classList.contains("hidden")) { reviewQueue = dueCards(); nextCard(); $("reviewCard").scrollIntoView({behavior: "smooth"}); }
 };
 function renderDeckList() {
@@ -746,7 +766,7 @@ function lineChart(title, points, unit, yMax) {
 }
 $("progressBtn").onclick = () => {
   const card = $("progressCard");
-  card.classList.toggle("hidden");
+  card.classList.toggle("hidden"); syncBrowser();
   if (card.classList.contains("hidden")) return;
   const h = loadHistory().filter(a => a.lang === LANG);
   const unitName = T("characters", "words");

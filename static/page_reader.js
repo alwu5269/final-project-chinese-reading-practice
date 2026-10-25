@@ -11,6 +11,8 @@
   const SENT_END = /[。！？!?]/;
   const send = msg => console.log("MAOMAO:" + JSON.stringify(msg));
   let units = [], active = -1, on = false, lang = "zh", script = "", converted = "";
+  let pick = null, pickMarkers = null;  // a highlighted selection being read instead of a paragraph
+  const current = () => pick || units[active];
   const EN_WORD = /\d+\/\d+|[½⅓¼¾⅔]|\d+(?:[.,]\d+)*%?°?|&|[A-Za-z]+(?:['’.][A-Za-z]+)*/g;  // same as EN_TOKEN in scoring.py
   const scored = s => lang === "en" ? true : HAN.test(s.textContent);  // which spans line up with scoring results
   const count = text => lang === "en" ? (text.match(EN_WORD) || []).length : (text.match(/[\u4e00-\u9fff]/g) || []).length;
@@ -57,6 +59,10 @@
       acceptNode: n => n.parentElement.closest(SKIP) || n.parentElement.closest(".mm-c") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
     });
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+    return wrapNodes(nodes);
+  }
+
+  function wrapNodes(nodes) {
     const spans = [];
     // Only Chinese characters and CJK punctuation get spans; Latin words and numbers stay plain text
     const CJK = /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/;
@@ -109,18 +115,40 @@
     return out;
   }
 
+  // Simplified/traditional: every Chinese text node on the page (title, headings, body) is converted
+  // in place, node by node, so a conversion that changes a node's length can't break the rest
+  let pending = [];
+  function convert(toScript) {
+    if (!toScript || converted === toScript) return false;
+    const walker = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => HAN.test(n.nodeValue) && !n.parentElement.closest("script,style,noscript,textarea") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+    });
+    pending = []; while (walker.nextNode()) pending.push(walker.currentNode);
+    if (!pending.length) { converted = toScript; return false; }
+    send({ type: "convert", script: toScript, texts: pending.map(n => n.nodeValue) });
+    return true;
+  }
+  // Called back with the converted text of each node
+  function applyTexts(texts, toScript) {
+    if (!pending.length) return;  // a reply to a request that was already answered
+    pending.forEach((n, i) => { if (typeof texts[i] === "string" && texts[i] !== n.nodeValue) n.nodeValue = texts[i]; });
+    pending = []; converted = toScript;
+    if (on) start(lang, script);
+  }
+
   function start(language, wantScript) {
     if (language && language !== lang) { lang = language; units = []; active = -1; }
     script = wantScript || "";
+    on = true;
+    if (lang === "zh" && convert(script)) return;  // convert the page first; applyTexts() comes back here
     if (!units.length) {
       for (const b of blocks()) for (const u of split(wrap(b))) units.push(u);
       units.forEach((u, i) => u.forEach(s => { s.classList.add("mm-unit"); s.dataset.unit = i; }));
     }
     on = true; document.documentElement.classList.add("mm-on");
+    if (pickMarkers) return readPick();
+    if (pick) return;  // keep reading the highlighted selection
     if (!units.length) return send({ type: "error", message: `Mao couldn't find ${lang === "en" ? "English" : "Chinese"} article text on this page.` });
-    if (lang === "zh" && script && converted !== script) {  // ask the app to convert the page's characters first
-      return send({ type: "convert", script, text: units.flat().map(s => s.textContent).join("") });
-    }
     select(active >= 0 ? active : 0);
   }
 
@@ -128,6 +156,7 @@
 
   function select(i) {
     if (i < 0 || i >= units.length) return;
+    if (pick) { pick.forEach(s => s.classList.remove("mm-active")); pick = null; }
     if (active >= 0) units[active].forEach(s => s.classList.remove("mm-active"));
     active = i;
     units[i].forEach(s => s.classList.add("mm-active"));
@@ -143,20 +172,20 @@
   }
 
   function setPinyin(list, show) {
-    if (active < 0) return;
+    if (!current()) return;
     if (list) {
       let k = 0;
-      for (const s of units[active]) if (scored(s)) s.dataset.py = list[k++] || "";
+      for (const s of current()) if (scored(s)) s.dataset.py = list[k++] || "";
     }
     document.documentElement.classList.toggle("mm-py-on", !!show);
     // make room above the lines for pinyin
-    const blocks = new Set(units[active].map(s => s.parentElement.closest("p, li, dd, blockquote, h1, h2, h3, td, div")));
-    blocks.forEach(b => b && b.classList.toggle("mm-roomy", !!show || !!units[active].some(s => s.classList.contains("mm-tone") || s.classList.contains("mm-misread"))));
+    const blocks = new Set(current().map(s => s.parentElement.closest("p, li, dd, blockquote, h1, h2, h3, td, div")));
+    blocks.forEach(b => b && b.classList.toggle("mm-roomy", !!show || !!current().some(s => s.classList.contains("mm-tone") || s.classList.contains("mm-misread"))));
   }
 
   function mark(results) {
-    if (active < 0) return;
-    const u = units[active]; clearMarks(u);
+    if (!current()) return;
+    const u = current(); clearMarks(u);
     let k = 0;
     for (const s of u) {
       if (!scored(s)) continue;
@@ -173,24 +202,82 @@
   // Clicking a passage selects it (links are not followed while reading mode is on)
   document.addEventListener("click", e => {
     if (!on) return;
-    const s = e.target.closest(".mm-unit"); if (!s) return;
+    const s = e.target.closest(".mm-unit, .mm-c"); if (!s) return;
+    const inCurrent = current() && current().includes(s);
+    if (!inCurrent && !s.classList.contains("mm-unit")) return;
     e.preventDefault(); e.stopPropagation();
-    if (+s.dataset.unit !== active) return select(+s.dataset.unit);
+    if (!inCurrent) return select(+s.dataset.unit);
     // In the passage you're reading: look up the tapped character (with a few neighbours for context)
-    const han = units[active].filter(scored), k = han.indexOf(s);
+    const han = current().filter(scored), k = han.indexOf(s);
     if (k < 0 || lang === "en") return;
     const from = Math.max(0, k - 3);
     send({ type: "define", text: han.slice(from, k + 4).map(x => x.textContent).join(""), index: k - from });
   }, true);
 
-  // Called back with the converted characters (same length): swap them into the page in place
-  function applyText(text, toScript) {
-    const spans = units.flat();
-    if ([...text].length !== spans.length) return select(active >= 0 ? active : 0);
-    [...text].forEach((ch, i) => { spans[i].textContent = ch; });
-    converted = toScript;
-    select(active >= 0 ? active : 0);
+  // ---------- Highlight any text, then "Read this" ----------
+  const readBtn = document.createElement("button");
+  readBtn.textContent = "🐾 Read this";
+  readBtn.style.cssText = "position:absolute;z-index:2147483647;display:none;padding:6px 12px;border:0;border-radius:999px;" +
+    "background:#e8823a;color:#fff;font:600 13px -apple-system,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer";
+  document.body.appendChild(readBtn);
+  readBtn.addEventListener("mousedown", e => e.preventDefault());  // keep the selection
+  const enoughText = t => count(t) >= 2;
+
+  document.addEventListener("mouseup", e => {
+    if (e.target === readBtn) return;
+    setTimeout(() => {
+      const sel = getSelection();
+      if (!sel.rangeCount || sel.isCollapsed || !enoughText(sel.toString())) { readBtn.style.display = "none"; return; }
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      readBtn.style.left = `${rect.left + scrollX}px`; readBtn.style.top = `${rect.bottom + scrollY + 6}px`;
+      readBtn.style.display = "block";
+    }, 0);
+  });
+
+  readBtn.addEventListener("click", e => {
+    e.preventDefault(); e.stopPropagation(); readBtn.style.display = "none";
+    const sel = getSelection(); if (!sel.rangeCount) return;
+    // Two empty markers keep the selection's place while the page's text is wrapped or converted
+    const range = sel.getRangeAt(0), a = document.createElement("i"), b = document.createElement("i");
+    const end = range.cloneRange(); end.collapse(false); end.insertNode(b);
+    const startR = range.cloneRange(); startR.collapse(true); startR.insertNode(a);
+    sel.removeAllRanges();
+    pickMarkers = [a, b];
+    if (on) return readPick();
+    send({ type: "reading", on: true });
+    start(lang, script);
+  });
+
+  function readPick() {
+    const [a, b] = pickMarkers; pickMarkers = null;
+    const range = document.createRange(); range.setStartAfter(a); range.setEndBefore(b);
+    const root = range.commonAncestorContainer.nodeType === 1 ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => range.intersectsNode(n) && !n.parentElement.closest("script,style,noscript") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+    });
+    const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+    const spans = [];
+    for (const n of nodes) {
+      const wrapped = n.parentElement.closest(".mm-c");
+      if (wrapped) { if (!spans.includes(wrapped)) spans.push(wrapped); }
+      else spans.push(...wrapNodes([n]));
+    }
+    a.remove(); b.remove();
+    if (spans.filter(scored).length < 2) return;
+    if (pick) pick.forEach(s => s.classList.remove("mm-active"));
+    if (active >= 0) units[active].forEach(s => s.classList.remove("mm-active"));
+    pick = spans;
+    spans.forEach(s => s.classList.add("mm-active"));
+    const r = document.createRange(); r.setStartBefore(spans[0]); r.setEndAfter(spans[spans.length - 1]);
+    const text = r.toString().replace(/\[\d+\]/g, "").replace(/\s+/g, " ").trim();
+    send({ type: "passage", text, index: Math.max(active, 0), total: units.length || 1, title: "Your selection · " + document.title, url: location.href });
   }
 
-  window.__mm = { applyText, start, stop, select, setPinyin, next: () => select(active + 1), prev: () => select(active - 1), mark };
+  // Called on every page load: remember the language and character set, and convert the page now
+  function prime(language, wantScript) {
+    if (!on) { if (language !== lang) units = []; lang = language; script = wantScript || ""; }
+    if (lang === "zh") convert(wantScript);
+  }
+
+  window.__mm = { prime, convert, applyTexts, start, stop, select, setPinyin, next: () => select(active + 1), prev: () => select(active - 1), mark };
 })();

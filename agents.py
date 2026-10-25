@@ -5,13 +5,12 @@ import os
 import time
 from pathlib import Path
 
-import sources
 from openai import BadRequestError, OpenAI  # noqa: F401  (BadRequestError re-exported for app.py)
 
 ROOT = Path(__file__).parent
 MODEL = "gpt-6-luna"
 MAX_TEXT_CHARS = 600            # longer passages are rejected before any API call
-SESSION_TOKEN_BUDGET = 200_000  # app refuses LLM calls once this many tokens are used
+SESSION_TOKEN_BUDGET = 500_000  # app refuses LLM calls once this many tokens are used
 USAGE_LOG = ROOT / "output" / "usage_log.jsonl"
 
 
@@ -56,7 +55,7 @@ def _call(agent: str, payload: dict, schema: dict, tools: list | None = None, ef
     """One structured call. User content is passed as JSON data, never as instructions."""
     global tokens_used
     if tokens_used >= SESSION_TOKEN_BUDGET:
-        raise BudgetExceeded(f"Token budget of {SESSION_TOKEN_BUDGET} reached for this session.")
+        raise BudgetExceeded(f"Token budget of {SESSION_TOKEN_BUDGET} reached for this session. Restart the app to reset it.")
     start = time.time()
     resp = client().responses.create(
         model=MODEL,
@@ -119,23 +118,20 @@ def coach(text: str, errors: list[dict], stats: dict, lang: str = "zh") -> dict:
 
 
 FIND_SCHEMA = _obj({
-    "articles": {"type": "array", "items": _obj({
-        "title": STR, "url": STR, "source": STR, "why": STR, "estimated_hsk": {"type": "integer"},
-    })},
+    "picks": {"type": "array", "items": _obj({"id": {"type": "integer"}, "why": STR, "estimated_level": {"type": "integer"}})},
 })
 
 STORY_SCHEMA = _obj({"title": STR, "story": STR, "english_title": STR})
 
 
-FIND_MAX_ROUNDS = 2
+def find_articles(level: int, interests: list[str], kind: str, candidates: list[dict], lang: str = "zh") -> dict:
+    """Finder agent: picks the best few of the candidate articles the app already fetched (feeds.py).
 
-
-def find_articles(level: int, interests: list[str], kind: str, exclude: list[str], unreachable: list[str], lang: str = "zh") -> dict:
-    """Finder agent: searches only the curated sites (sources.py) for articles matching interests and level."""
-    payload = {"hsk_level": level, "interests": interests, "kind": kind, "sources": sources.for_lang(lang)[kind],
-               "already_suggested": exclude, "unreachable_last_time": unreachable}
-    search = {"type": "web_search", "filters": {"allowed_domains": sources.domains(kind, lang)}}
-    return _call("finder", payload, FIND_SCHEMA, tools=[search], effort="low", lang=lang)
+    No web search: the candidates are real, opened pages, so the agent only judges topic and fit,
+    from a title, a short opening snippet and (in Chinese) the measured HSK level.
+    """
+    payload = {"level": level, "interests": interests, "kind": kind, "candidates": candidates}
+    return _call("finder", payload, FIND_SCHEMA, effort="low", lang=lang)
 
 
 def write_story(level: int, interests: list[str], lang: str = "zh") -> dict:

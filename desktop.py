@@ -130,7 +130,7 @@ class Window(QMainWindow):
         bar.addWidget(button("⟳", self.web.reload))
         bar.addWidget(self.address, 1)
         bar.addWidget(self.read_btn)
-        left = QWidget()
+        self.left = left = QWidget()
         col = QVBoxLayout(left)
         col.setContentsMargins(6, 6, 6, 6)
         col.addLayout(bar)
@@ -173,14 +173,19 @@ class Window(QMainWindow):
             self.read_after_load = False
             self.read_btn.setChecked(True)
             self.toggle_reading(True)
+        else:  # tell the page its language, and show it in the chosen character set, reading or not
+            self.page_js(f"__mm.prime({json.dumps(self.lang)}, {json.dumps(self.script)})")
 
     def from_browser(self, msg: dict):
         if msg.get("type") == "passage":
             self.reader_js(f"window.desktopPassage({json.dumps(msg, ensure_ascii=False)})")
         elif msg.get("type") == "convert":
             to = msg.get("script", "")
-            text = script.convert(str(msg.get("text", ""))[:200_000], to)
-            self.page_js(f"__mm.applyText({json.dumps(text, ensure_ascii=False)}, {json.dumps(to)})")
+            texts = [script.convert(str(t)[:20_000], to) for t in msg.get("texts", [])[:20_000]]
+            self.page_js(f"__mm.applyTexts({json.dumps(texts, ensure_ascii=False)}, {json.dumps(to)})")
+        elif msg.get("type") == "reading":  # you highlighted text with reading mode off: it's on now
+            self.read_btn.setChecked(True)
+            self.read_btn.setText("🐾 Reading… (click a paragraph)")
         elif msg.get("type") == "define":
             self.reader_js(f"window.desktopDefine({json.dumps(msg, ensure_ascii=False)})")
         elif msg.get("type") == "error":
@@ -195,10 +200,11 @@ class Window(QMainWindow):
         if kind == "lang":
             self.lang = "en" if msg.get("lang") == "en" else "zh"
             new_script = msg.get("script", "") if msg.get("script") in ("s", "t", "") else ""
-            if new_script != self.script and self.read_btn.isChecked():
-                self.script = new_script
+            changed, self.script = new_script != self.script, new_script
+            if changed and self.read_btn.isChecked():
                 self.page_js(f"__mm.start({json.dumps(self.lang)}, {json.dumps(self.script)})")
-            self.script = new_script
+            elif not self.read_btn.isChecked():
+                self.page_js(f"__mm.prime({json.dumps(self.lang)}, {json.dumps(self.script)})")
             if self.lang == "en" and "zh.wikipedia.org" in self.web.url().toString():
                 self.web.load(QUrl("https://simple.wikipedia.org/wiki/Cat"))
         elif kind == "open" and str(msg.get("url", "")).startswith(("http://", "https://")):
@@ -208,6 +214,8 @@ class Window(QMainWindow):
             self.page_js(f"__mm.mark({json.dumps(msg.get('results', []), ensure_ascii=False)})")
         elif kind == "pinyin":
             self.page_js(f"__mm.setPinyin({json.dumps(msg.get('pinyin'), ensure_ascii=False)}, {json.dumps(bool(msg.get('show')))})")
+        elif kind == "browser":  # the coach hides the browser when it isn't in use (stories, Review, Progress)
+            self.left.setVisible(bool(msg.get("show")))
         elif kind == "nav":
             self.page_js("__mm.next()" if msg.get("dir") == 1 else "__mm.prev()")
 
