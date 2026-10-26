@@ -15,14 +15,16 @@ USAGE_LOG = ROOT / "output" / "usage_log.jsonl"
 
 
 def load_env() -> None:
-    """Look for .env in the repo folder first, then one level up."""
+    """Look for .env in the repo folder first, then one level up (where the teaching staff keep theirs).
+
+    Both files are read; a value from the repo folder wins over the one above it.
+    """
     for path in (ROOT / ".env", ROOT.parent / ".env"):
         if path.exists():
             for line in path.read_text(encoding="utf-8").splitlines():
                 if line.strip() and not line.lstrip().startswith("#") and "=" in line:
                     key, value = line.split("=", 1)
                     os.environ.setdefault(key.strip(), value.strip().strip("'\""))
-            return
 
 
 load_env()

@@ -34,7 +34,7 @@ Requires Python 3.11+ and a microphone. The first start downloads the Whisper sp
    ```bash
    git clone https://github.com/alwu5269/final-project-chinese-reading-practice.git && cd final-project-chinese-reading-practice
    ```
-2. Put a `.env` file with your key either in this folder or **one level above it**. See `.env.example` for the key name (`PORTKEY_API_KEY`, or `OPENAI_API_KEY`).
+2. Put a `.env` file with your key either in this folder or **one level above it**. It needs one key, named exactly `PORTKEY_API_KEY` (used first) or `OPENAI_API_KEY`; see `.env.example`.
 3. Create a virtual environment and install dependencies:
    ```bash
    python3 -m venv .venv
@@ -54,7 +54,7 @@ Requires Python 3.11+ and a microphone. The first start downloads the Whisper sp
 
 Note: some networks (VPNs, campus DNS filters) block mainland-China websites. The curated sources were chosen to work internationally; links that don't open are skipped.
 
-**Without the desktop window:** `.venv/bin/uvicorn app:app --port 8000` and open http://localhost:8000 in any browser; paste text or import an article by link. To test without a microphone, open "Type what you read instead". For a faster but less accurate speech model set `WHISPER_MODEL=base` in `.env`.
+**Without the desktop window:** `.venv/bin/uvicorn app:app --port 8000` and open http://localhost:8000 in any browser; paste text or import an article by link. To test without a microphone, open "Type what you read instead". For a faster but less accurate speech model, set the optional setting `WHISPER_MODEL=base` in `.env` (it's not a key; the default is `small`).
 
 ## Safety
 
