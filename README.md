@@ -1,6 +1,6 @@
 # 猫猫读 MaoMao Read
 
-A cat-themed Chinese reading coach. Find an article picked for your level and interests, or bring your own text, read it out loud, and see exactly which characters you misread, read with the wrong tone, or skipped. Built for heritage speakers who speak Chinese at home but read it less well.
+A cat-themed Chinese reading coach. Find an article or a story picked for your level, or bring your own text (any web page, a link or pasted text), read it out loud, and see exactly which characters you misread, read with the wrong tone, or skipped. Built for heritage speakers who speak Chinese at home but read it less well.
 
 ## How it works
 
@@ -18,17 +18,17 @@ There are two ways to choose what to read:
 6. **Hesitations.** Whisper's word timings show where you paused mid-phrase (not at punctuation); those characters get an orange marker.
 7. **Tap for meaning.** Tap any character (in the panel or in the passage on the web page) to see the dictionary word around it, pinyin and meanings from the offline CC-CEDICT dictionary, hear it, or add it to your review deck. See `dictionary.py`.
 8. **Progress.** Every checked reading is saved; **📈 Progress** shows accuracy and speed over time, your most-missed characters, recent readings, and a CSV export.
-9. **Review deck.** Every tone error or misread is saved (in the reader's browser storage) with a short phrase around it. **Review deck** quizzes you by reading the phrase aloud, scored by the same code with no AI tokens used. Cards come back after 1, 3, 7 and 21 days (Leitner boxes).
+9. **Review deck.** Every tone error or misread is saved (in the reader's browser storage) with a short phrase around it. **Review deck** quizzes you by reading the phrase aloud, scored by the same code with no AI tokens used, then shows the word's meaning. Cards come back after 1, 3, 7 and 21 days (Leitner boxes).
 
 Token usage for every agent call is appended to `output/usage_log.jsonl`.
 
 ## English mode (for graders)
 
-Don't read Chinese? Click **English** in the top-right corner. Everything works the same way in English: find articles (BBC, NPR, Storynory, Smithsonian, NASA, Science News Explores, BBC Good Food, Simple English Wikipedia), paste your own text, read in the desktop browser pane, coaching, and the review deck. Scoring is per word instead of per character (no tones), the level is shown as CEFR (A1–C2), and translations go into Chinese. Try the **Tricky words** and **Safety test** samples under *I have my own → Try a sample*.
+Don't read Chinese? Click **English** in the top-right corner. Everything works the same way in English: find articles (BBC, NPR, Smithsonian, NASA, Science News Explores, BBC Good Food, Simple English Wikipedia, Wikipedia), paste your own text, read in the desktop browser pane, coaching, and the review deck. Scoring is per word instead of per character (no tones), the level is an AI estimate shown as CEFR (A1–C2), and instead of a translation you get a short summary in simple English. Try the **Tricky words** and **Safety test** samples under *I have my own → Try a sample*.
 
 ## Run it locally
 
-Requires Python 3.11+ and a microphone. The first recording downloads the Whisper model once (about 480 MB).
+Requires Python 3.11+ and a microphone. The first start downloads the Whisper speech model once (about 480 MB, in the background).
 
 1. Clone the repo and enter the folder:
    ```bash
@@ -50,7 +50,7 @@ Requires Python 3.11+ and a microphone. The first recording downloads the Whispe
    The terminal may show lines like these. They are harmless and can be ignored:
    - `Error parsing certificate … Failed parsing extensions`: the built-in browser skips one certificate on your Mac it can't read; secure sites still load.
    - `MallocStackLogging: can't turn off malloc stack logging…`: macOS prints this when the app starts its helper processes for reading articles.
-5. Pick a suggested article (or browse to any Chinese page and press **🐾 Read on this page**, or highlight some text and press **🐾 Read this**), click a paragraph, press **Start reading**, read it, and press **Stop and check**.
+5. Pick a suggested article (or browse to any Chinese page and press **🐾 Read on this page**, or highlight some text and press **🐾 Read this**), click a paragraph, press **Start reading**, read it, and press **Stop and check** (or **↺ Start over** if you want to begin again).
 
 Note: some networks (VPNs, campus DNS filters) block mainland-China websites. The curated sources were chosen to work internationally; links that don't open are skipped.
 
@@ -66,7 +66,7 @@ Note: some networks (VPNs, campus DNS filters) block mainland-China websites. Th
 - Article import only fetches public web addresses (localhost and private networks are blocked), with a size limit and timeout.
 - Reading mode never follows links or runs page instructions; the page's text only goes to the agents as data. Only the coach pane gets the microphone; the browser pane's permission requests are denied.
 - Recordings stay in server memory only (last 20) so tones can be checked; nothing is written to disk. Saved progress and the review deck live in the app's own browser storage (`output/browser-profile/`, git-ignored).
-- Passages are limited to 600 characters, and each server session stops making AI calls after 200,000 tokens.
+- Passages are limited to 600 characters, and each server session stops making AI calls after 500,000 tokens (restart the app to reset).
 - Try the two "Safety test" samples to see these defenses work.
 
 ## Files
