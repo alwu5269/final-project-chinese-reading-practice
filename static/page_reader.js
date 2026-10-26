@@ -21,7 +21,7 @@
   css.textContent = `
     .mm-on .mm-unit { cursor: pointer; }
     .mm-on .mm-unit:hover { background: rgba(232,130,58,.10); }
-    .mm-active { background: rgba(253,233,214,.95) !important; box-shadow: 0 0 0 3px rgba(253,233,214,.95); border-radius: 4px; }
+    .mm-active { background: rgba(253,233,214,.95) !important; border-radius: 2px; }
     .mm-tone { background: #fff0c9 !important; color: #a86a00 !important; border-radius: 3px; }
     .mm-misread { background: #fde1e6 !important; color: #c8384f !important; border-radius: 3px; }
     .mm-skipped { background: #eee6dc !important; color: #8b7b70 !important; text-decoration: line-through; }
@@ -29,15 +29,20 @@
     .mm-pause { box-shadow: inset 3px 0 0 #e8823a; padding-left: 3px; }
     .mm-c[data-tip]:hover::after { content: attr(data-tip); position: absolute; transform: translate(-50%, -130%); background: #3d2f28; color: #fff;
       font-size: 12px; padding: 3px 8px; border-radius: 8px; white-space: nowrap; pointer-events: none; z-index: 99999; }
-    .mm-c { position: relative; }
+    /* Some sites style every <span> in an article (as blocks, floats, fixed widths...). The character
+       wrappers must stay plain inline text whatever the page's own CSS says. */
+    .mm-c { position: relative !important; display: inline !important; float: none !important; width: auto !important;
+      height: auto !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important;
+      font: inherit !important; line-height: inherit !important; text-indent: 0 !important; letter-spacing: inherit !important; }
+    .mm-c.mm-pause { padding-left: 3px !important; }
     .mm-c[data-py]::before { content: attr(data-py); position: absolute; left: 50%; transform: translateX(-50%); top: -1.15em;
       font-size: 10px; letter-spacing: -.2px; line-height: 1; white-space: nowrap; color: #c4651f; font-family: -apple-system, sans-serif; font-style: normal; font-weight: 400;
       visibility: hidden; pointer-events: none; }
-    /* Shown pinyin sits in the flow (character box widens to fit it), so neighbours never overlap */
-    .mm-py-on .mm-active[data-py], .mm-tone[data-py], .mm-misread[data-py] {
-      display: inline-flex; flex-direction: column; align-items: center; vertical-align: bottom; line-height: 1.3; padding: 6px 1px 0; }
-    .mm-py-on .mm-active[data-py]::before, .mm-tone[data-py]::before, .mm-misread[data-py]::before {
-      position: static; transform: none; visibility: visible; margin-bottom: 1px; }
+    /* Pinyin shows only when you turn it on, and sits in the flow (the character box widens to fit it),
+       so neighbours never overlap. Mistakes are just colored; hover one to see what Mao heard. */
+    .mm-py-on .mm-active[data-py] {
+      display: inline-flex !important; padding: 6px 1px 0 !important; flex-direction: column; align-items: center; vertical-align: bottom; line-height: 1.3 !important; }
+    .mm-py-on .mm-active[data-py]::before { position: static; transform: none; visibility: visible; margin-bottom: 1px; }
     .mm-roomy { line-height: 2.1 !important; }`;
   document.head.appendChild(css);
 
@@ -180,7 +185,7 @@
     document.documentElement.classList.toggle("mm-py-on", !!show);
     // make room above the lines for pinyin
     const blocks = new Set(current().map(s => s.parentElement.closest("p, li, dd, blockquote, h1, h2, h3, td, div")));
-    blocks.forEach(b => b && b.classList.toggle("mm-roomy", !!show || !!current().some(s => s.classList.contains("mm-tone") || s.classList.contains("mm-misread"))));
+    blocks.forEach(b => b && b.classList.toggle("mm-roomy", !!show));
   }
 
   function mark(results) {
@@ -194,6 +199,7 @@
       if (r.status === "tone" || r.status === "misread") s.dataset.tip = r.heard_pinyin ? `Mao heard ${r.heard} (${r.heard_pinyin})` : `Mao heard “${r.heard}”`;
       if (r.status === "skipped") s.dataset.tip = "Skipped";
       if (r.tone_from_pitch) s.dataset.tip = `Tone slip: your voice was ${r.you_shape}, native is ${r.native_shape}`;
+      if (s.dataset.tip && s.dataset.py && r.status !== "skipped") s.dataset.tip += ` · should be ${s.dataset.py}`;
       if (r.pause) { s.classList.add("mm-pause"); s.dataset.tip = (s.dataset.tip ? s.dataset.tip + " · " : "") + `paused ${r.pause}s`; }
     }
     setPinyin(null, document.documentElement.classList.contains("mm-py-on"));

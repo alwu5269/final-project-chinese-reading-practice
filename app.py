@@ -96,6 +96,13 @@ def run_agent(fn, *args):
         raise HTTPException(502, f"AI agent error: {type(e).__name__}")
 
 
+def level_reason(text: str) -> str:
+    """Why the passage got its level, from the same measurement as the pill (not the AI's own guess)."""
+    words = sorted(dict(levels.segment(text)).items(), key=lambda kv: -kv[1])
+    hard = [f"{w} ({'beyond HSK 6' if lvl > 6 else f'HSK {lvl}'})" for w, lvl in words[:3] if lvl > 1]
+    return "Hardest words: " + ", ".join(hard) + "." if hard else "Every word is on the HSK 1 list."
+
+
 @app.post("/api/prepare")
 def prepare(body: PrepareIn):
     lang = clean_lang(body.lang)
@@ -105,7 +112,7 @@ def prepare(body: PrepareIn):
     out = {"text": text, "chars": scoring.annotate(text, lang), **run_agent(agents.prepare, text, lang)}
     if lang == "zh":  # the level shown is measured against the HSK word list, not the AI's guess
         m = levels.measure(text)
-        out.update(hsk_level=m["hsk"] or out["hsk_level"], known=m["known"])
+        out.update(hsk_level=m["hsk"] or out["hsk_level"], known=m["known"], level_reason=level_reason(text))
     return out
 
 

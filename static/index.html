@@ -296,7 +296,10 @@ async function api(path, body) {
   if (!res.ok) throw new Error(data.detail || "Something went wrong");
   return data;
 }
-function showError(msg) { $("error").innerHTML = msg ? `<div class="alert">🙀 ${esc(msg)}</div>` : ""; }
+function showError(msg) {
+  $("error").innerHTML = msg ? `<div class="alert">🙀 ${esc(msg)}</div>` : "";
+  if (msg) $("error").scrollIntoView({ behavior: "smooth", block: "center" });  // it sits at the bottom of the page
+}
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 // "Hear it": natural neural voice from the server; the browser's own voice is only a fallback
 let player = null;
@@ -497,7 +500,7 @@ async function prepare(text) {
       toDesktop({ type: "pinyin", pinyin: d.chars.filter(c => c.pinyin).map(c => c.pinyin), show: $("reading").classList.contains("show-pinyin") });
     }
     if (inPage) $("readCard").scrollIntoView({ block: "start" });
-  } catch (e) { $("levelBox").innerHTML = ""; showError(e.message); }
+  } catch (e) { $("levelBox").innerHTML = `<div class="alert">🙀 ${esc(e.message)}</div>`; }  // shown where you're looking
   refreshUsage();
 }
 
