@@ -1,6 +1,8 @@
 """MaoMao Read: read Chinese (or English, for testers) aloud and see which characters or words you misread."""
 
 import json
+import multiprocessing
+import random
 from functools import lru_cache
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -24,7 +26,10 @@ import voice
 
 ROOT = Path(__file__).parent
 app = FastAPI(title="Read Aloud")
-speech.preload()
+# Text-extraction helper processes re-import this module; only the main app does the startup work
+MAIN_PROCESS = multiprocessing.parent_process() is None
+if MAIN_PROCESS:
+    speech.preload()
 
 
 Lang = str  # "zh" (default) or "en"
@@ -206,8 +211,9 @@ def convert(body: ConvertIn):
 FIND_CANDIDATES = 12  # links opened per search
 OPEN_DEADLINE = 8     # seconds to wait for those pages; the rest are skipped this time
 POOL = ThreadPoolExecutor(32)
-POOL.submit(feeds.warm)  # read every site's feed in the background at startup (no AI, no tokens)
-POOL.submit(lambda: extractor().submit(len, "").result())  # start the text-extraction helpers early
+if MAIN_PROCESS:
+    POOL.submit(feeds.warm)  # read every site's feed in the background at startup (no AI, no tokens)
+    POOL.submit(lambda: extractor().submit(len, "").result())  # start the text-extraction helpers early
 SNIPPET_CHARS = 80    # opening characters of each candidate shown to the Finder
 
 
@@ -250,10 +256,26 @@ def find(body: ProfileIn):
     return {"articles": articles, "rounds": rounds, "too_hard": too_hard}
 
 
+STORY_IDEAS = ["a rainy day", "a lost pet", "a birthday", "a trip to the market", "cooking with family", "a new friend",
+               "a day at school", "a visit to grandma", "a weekend at the park", "learning something new", "a small mistake",
+               "a phone call", "waiting for the bus", "a gift", "a sick day", "a good meal", "the first snow", "helping a neighbour"]
+STORY_REVISIONS = 2  # rewrites asked for when a story measures above the level
+
+
 def written_story(level: int, interests: list[str], lang: str) -> dict:
-    out = run_agent(agents.write_story, level, interests, lang)
-    if lang == "zh" and levels.measure(out["story"])["hsk"] > level + 1:  # one retry if it came out too hard
-        out = run_agent(agents.write_story, level, interests, lang)
+    """A story at the learner's level. In Chinese the level is checked by code (levels.py): a draft above
+    the level goes back to the Writer with the exact words to replace, at most STORY_REVISIONS times."""
+    idea = random.choice(STORY_IDEAS)  # also keeps repeat requests from getting the same cached story
+    allowed = levels.words_up_to(level) if lang == "zh" and level <= 3 else None
+    out = run_agent(agents.write_story, level, interests, lang, idea, allowed)
+    for _ in range(STORY_REVISIONS if lang == "zh" else 0):
+        if levels.measure(out["story"])["hsk"] <= level:
+            break
+        hard = levels.hard_words(out["story"], level)[:20]
+        draft = run_agent(agents.write_story, level, interests, lang, idea, allowed,
+                          {"story": out["story"], "replace_words": hard})
+        if levels.measure(draft["story"])["hsk"] <= levels.measure(out["story"])["hsk"]:
+            out = draft
     out["story"] = out["story"][: agents.MAX_TEXT_CHARS]
     if lang == "zh":
         out["measured_hsk"] = levels.measure(out["story"])["hsk"]
@@ -288,6 +310,15 @@ def samples(lang: str = "zh"):
 @app.get("/api/usage")
 def usage():
     return {"session_tokens": agents.tokens_used, "budget": agents.SESSION_TOKEN_BUDGET}
+
+
+@app.middleware("http")
+async def no_stale_pages(request: Request, call_next):
+    """The desktop window keeps a persistent cache; never let it keep an old copy of the app itself."""
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/")

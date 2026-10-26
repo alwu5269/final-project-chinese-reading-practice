@@ -7,7 +7,7 @@ A cat-themed Chinese reading coach. Find an article picked for your level and in
 The desktop app is one window: **a real web browser on the left, Coach Mao on the right.** You read directly on the web page: press **🐾 Read on this page**, click any paragraph, read it aloud, and your mistakes are colored right on the page (hover to see what Mao heard). Suggested articles open in the browser pane, ready to read. `static/page_reader.js` is injected into the page for this.
 
 There are two ways to choose what to read:
-- **✨ Find me something.** Pick a category (News, Kids' stories, Science & tech, Food & recipes, Culture & life, Sports, Encyclopedia) and your HSK level. Code reads the newest article links from each curated site in `sources.py` (its RSS feed, its "latest" list page, or Wikipedia's featured articles; see `feeds.py`), opens up to 12 of them, and measures each one's HSK level. The **Finder** agent (`gpt-6-luna`, no web search) then picks the best 4 from their titles, opening lines and measured levels, and says why each fits. This takes about 1–2k tokens per search, down from about 17k when the Finder ran its own web searches. When every article is far above your level (usual at HSK 1–3), the **Writer** agent's story at your level leads the list.
+- **✨ Find me something.** Pick a category (News, Kids' stories, Science & tech, Food & recipes, Culture & life, Sports, Encyclopedia) and your HSK level. Code reads the newest article links from each curated site in `sources.py` (its RSS feed, its "latest" list page, or Wikipedia's featured articles; see `feeds.py`), opens up to 12 of them, and measures each one's HSK level. The **Finder** agent (`gpt-6-luna`, no web search) then picks the best 4 from their titles, opening lines and measured levels, and says why each fits. This takes about 1–2k tokens per search, down from about 17k when the Finder ran its own web searches. Real articles are almost always HSK 3 or above (most measure HSK 5–6), so when every article is far above your level (usual at HSK 1–3), the **Writer** agent's story at your level leads the list. For HSK 1–3 the Writer gets the official HSK word list for that level, and code checks the result: a story that measures too hard goes back with the exact words to replace.
 - **📖 I have my own.** Paste text, import a link, or browse in the desktop window's browser pane.
 
 1. **Prepare.** The Leveler agent (`gpt-6-luna`) translates the passage. Its HSK level is measured by code (`levels.py`) against the official HSK 2.0 word list, not guessed by the AI; found articles are labeled and sorted by that measured level. Pinyin comes from the `pypinyin` library, not the AI.
@@ -45,8 +45,12 @@ Requires Python 3.11+ and a microphone. The first recording downloads the Whispe
    ```bash
    .venv/bin/python desktop.py
    ```
-   On macOS, allow microphone access for your terminal when asked.
-5. Pick a suggested article (or browse to any Chinese page and press **🐾 Read on this page**), click a paragraph, press **Start reading**, read it, and press **Stop and check**.
+   On macOS, allow microphone access for your terminal when asked. The coach opens at full width; the browser appears when you open an article or a site (or press **🌐 Browser**).
+
+   The terminal may show lines like these. They are harmless and can be ignored:
+   - `Error parsing certificate … Failed parsing extensions`: the built-in browser skips one certificate on your Mac it can't read; secure sites still load.
+   - `MallocStackLogging: can't turn off malloc stack logging…`: macOS prints this when the app starts its helper processes for reading articles.
+5. Pick a suggested article (or browse to any Chinese page and press **🐾 Read on this page**, or highlight some text and press **🐾 Read this**), click a paragraph, press **Start reading**, read it, and press **Stop and check**.
 
 Note: some networks (VPNs, campus DNS filters) block mainland-China websites. The curated sources were chosen to work internationally; links that don't open are skipped.
 

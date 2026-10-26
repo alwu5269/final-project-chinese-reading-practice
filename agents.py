@@ -134,6 +134,16 @@ def find_articles(level: int, interests: list[str], kind: str, candidates: list[
     return _call("finder", payload, FIND_SCHEMA, effort="low", lang=lang)
 
 
-def write_story(level: int, interests: list[str], lang: str = "zh") -> dict:
-    """Writer agent: a short graded story when real articles would be too hard."""
-    return _call("writer", {"hsk_level": level, "interests": interests}, STORY_SCHEMA, lang=lang)
+def write_story(level: int, interests: list[str], lang: str = "zh", idea: str = "",
+                allowed_words: list[str] | None = None, revise: dict | None = None) -> dict:
+    """Writer agent: a short graded story when real articles would be too hard.
+
+    allowed_words: the official HSK word list up to this level (levels 1-3), so the agent knows
+    exactly which words it may use. revise: {"story", "replace_words"} to fix a draft that measured too hard.
+    """
+    payload = {"hsk_level": level, "interests": interests, "idea": idea}
+    if allowed_words:
+        payload["allowed_words"] = " ".join(allowed_words)
+    if revise:
+        payload["revise"] = revise
+    return _call("writer", payload, STORY_SCHEMA, lang=lang)

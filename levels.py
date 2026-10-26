@@ -29,8 +29,8 @@ def _tables() -> tuple[dict[str, int], dict[str, int]]:
     return words, chars
 
 
-def char_levels(text: str) -> list[int]:
-    """The HSK level (1-7) of every Chinese character in `text`, in order."""
+def segment(text: str) -> list[tuple[str, int]]:
+    """(word, HSK level 1-7) for each word of the Chinese text, by longest match against the HSK list."""
     words, chars = _tables()
     s = script.to_simplified(text)
     out, i = [], 0
@@ -41,13 +41,28 @@ def char_levels(text: str) -> list[int]:
         for size in (4, 3, 2, 1):
             w = s[i:i + size]
             if w in words:
-                out += [words[w]] * size
+                out.append((w, words[w]))
                 i += size
                 break
         else:
-            out.append(chars.get(s[i], 7))
+            out.append((s[i], chars.get(s[i], 7)))
             i += 1
     return out
+
+
+def char_levels(text: str) -> list[int]:
+    """The HSK level (1-7) of every Chinese character in `text`, in order."""
+    return [lvl for w, lvl in segment(text) for _ in w]
+
+
+def words_up_to(level: int) -> list[str]:
+    """The official HSK words a learner at `level` knows."""
+    return [w for w, lvl in _tables()[0].items() if lvl <= level]
+
+
+def hard_words(text: str, level: int) -> list[str]:
+    """Words in `text` above `level`, each once, in order."""
+    return list(dict.fromkeys(w for w, lvl in segment(text) if lvl > level))
 
 
 def measure(text: str) -> dict:

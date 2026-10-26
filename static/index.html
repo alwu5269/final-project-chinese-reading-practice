@@ -33,6 +33,10 @@
   @keyframes pulse { 50% { box-shadow: 0 0 0 9px rgba(200,56,79,.15); } }
   .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
   .muted { color: var(--muted); font-size: 14px; }
+  .card-meaning { max-width: 420px; margin: 10px auto 0; text-align: left; background: var(--accent-soft); border-radius: 14px; padding: 10px 16px; }
+  .card-meaning:empty { display: none; }
+  .card-meaning .py { color: var(--accent-dark); margin-left: 6px; }
+  .card-meaning ol { margin: 6px 0 0; padding-left: 20px; }
   .hidden { display: none !important; }
 
   /* Start: two ways in */
@@ -184,6 +188,7 @@
       <p class="muted" id="kindSources" style="margin:8px 2px 0;font-size:13px"></p>
       <h3>My reading level</h3>
       <div class="chips" id="levels"></div>
+      <p class="muted zh-only" id="levelNote" style="margin:8px 2px 0;font-size:13px">📏 Real articles are almost always HSK 3 or above (most measure HSK 5–6 against the HSK word list). Below that, Mao also writes a story at your level, and it comes first in the results.</p>
       <div class="bar">
         <button class="primary" id="findBtn">🔎&nbsp; Find real articles</button>
         <button id="storyBtn">✍️&nbsp; Write me a story</button>
@@ -251,7 +256,7 @@
   <section class="card hidden" id="reviewCard">
     <h2 id="reviewTitle">🐟&nbsp; Review · characters that slipped before</h2>
     <div id="reviewBody"></div>
-    <div class="deck-list" id="deckList"></div>
+    <details id="deckBox" style="margin-top:14px"><summary class="muted" id="deckSummary"></summary><div class="deck-list" id="deckList"></div></details>
   </section>
 
   <div id="error"></div>
@@ -335,7 +340,7 @@ function renderProfile() {
   $("kinds").innerHTML = categories.map(c => `<button class="chip ${c.kind === profile.kind ? "on" : ""}" data-kind="${c.kind}">${esc(c.label).replace(" ", "&nbsp; ")}</button>`).join("");
   if (categories.length && !categories.some(c => c.kind === profile.kind)) profile.kind = categories[0].kind;
   const cat = categories.find(c => c.kind === profile.kind);
-  $("kindSources").textContent = cat ? "Mao only searches trusted sites: " + cat.sources.join(" · ") : "";
+  $("kindSources").textContent = cat ? "Mao picks from trusted sites: " + cat.sources.join(" · ") : "";
   $("levels").innerHTML = [1, 2, 3, 4, 5, 6].map(n =>
     `<button class="chip ${profile.level === n ? "on" : ""}" data-level="${n}">${LEVEL(n)}${n === 1 ? " · beginner" : n === 6 ? " · fluent" : ""}</button>`).join("");
 }
@@ -358,7 +363,10 @@ function startPrefetch() {
 let prefetchTimer = null;
 const schedulePrefetch = () => { clearTimeout(prefetchTimer); prefetchTimer = setTimeout(startPrefetch, 2000); };
 schedulePrefetch();
+// The button you used last stays highlighted, so it's clear whether you're on real articles or a story
+const pickSource = id => ["findBtn", "storyBtn"].forEach(b => $(b).classList.toggle("primary", b === id));
 $("findBtn").onclick = async () => {
+  pickSource("findBtn");
   showError(""); $("findBtn").disabled = true;
   $("findResults").innerHTML = loading("Mao is sniffing around the web for articles…");
   try {
@@ -368,7 +376,7 @@ $("findBtn").onclick = async () => {
     const dropped = d.rounds.reduce((n, r) => n + r.dropped, 0);
     $("findResults").innerHTML = found.length ? `${d.too_hard ? `<div class="flag">📏 Real articles on these sites are harder than ${LEVEL(profile.level)}, so Mao wrote you a story at your level first. The real articles below are good stretch reading.</div>` : ""}<div class="results">${found.map((a, i) => `
       <button class="result" data-i="${i}">
-        <span class="pill" title="${a.measured_hsk ? "Measured against the HSK word list" : "Estimated by Mao"}">${LEVEL(a.measured_hsk || a.estimated_hsk)}</span><span class="pill soft">${esc(a.source)}</span>${a.script === "traditional" ? '<span class="pill soft">繁體</span>' : ""}
+        ${a.measured_hsk || a.estimated_hsk ? `<span class="pill" title="${a.measured_hsk ? "Measured against the HSK word list" : "Estimated by Mao"}">${LEVEL(a.measured_hsk || a.estimated_hsk)}</span>` : ""}<span class="pill soft">${esc(a.source)}</span>${a.script === "traditional" ? '<span class="pill soft">繁體</span>' : ""}
         <b>${esc(a.title)}</b><small>${esc(a.why)} · ${a.passages.length} passage${a.passages.length === 1 ? "" : "s"}</small>
       </button>`).join("")}</div>
       ${dropped ? `<p class="muted">🐾 Mao checked every link and skipped ${dropped} that didn't open or had no ${T("Chinese", "English")} article.</p>` : ""}`
@@ -388,6 +396,7 @@ $("findResults").onclick = e => {
   window.loadArticle(a);
 };
 $("storyBtn").onclick = async () => {
+  pickSource("storyBtn");
   showError(""); $("storyBtn").disabled = true;
   $("findResults").innerHTML = loading("Mao is writing you a story…");
   try {
@@ -422,8 +431,8 @@ window.loadArticle = a => { if (a.error) return showError(a.error); setInPage(fa
 
 // ---------- Desktop app: reading happens on the real web page (left pane) ----------
 const toDesktop = msg => console.log("MAOMAO:" + JSON.stringify(msg));
-// The browser pane shows only while it is in use: hidden for stories, pasted text, Review and Progress
-let browsing = true;
+// The browser pane shows only while it is in use: hidden at start and for stories, pasted text, Review and Progress
+let browsing = false;
 function syncBrowser() {
   if (!DESKTOP) return;
   const show = browsing && $("reviewCard").classList.contains("hidden") && $("progressCard").classList.contains("hidden");
@@ -480,7 +489,7 @@ async function prepare(text) {
     const d = await api("/api/prepare", { text, lang: LANG, script: SCRIPT() });
     current = { text: d.text, chars: d.chars };
     $("levelBox").innerHTML =
-      `<span class="pill">${LEVEL(d.hsk_level)}</span>${d.known ? `<span class="pill soft" title="Measured against the official HSK 2.0 word list">${Math.round(d.known[profile.level - 1] * 100)}% of characters within ${LEVEL(profile.level)}</span>` : ""}<span class="muted">${esc(d.level_reason)}</span>
+      `${d.hsk_level ? `<span class="pill">${LEVEL(d.hsk_level)}</span>` : ""}${d.known ? `<span class="pill soft" title="Measured against the official HSK 2.0 word list">${Math.round(d.known[profile.level - 1] * 100)}% of characters within ${LEVEL(profile.level)}</span>` : ""}<span class="muted">${esc(d.level_reason)}</span>
        <details style="margin-top:8px"><summary class="muted">${T("English translation", "Summary")}</summary><div class="translation">${esc(d.translation)}</div></details>
        ${d.suspicious_instructions ? `<div class="flag">⚠️ This text contains instructions aimed at the AI. Mao ignored them.</div>` : ""}`;
     renderReading();
@@ -687,7 +696,12 @@ $("reviewBtn").onclick = () => {
 };
 function renderDeckList() {
   const all = myCards().sort((a, b) => b.misses - a.misses);
-  $("deckList").innerHTML = all.map(c => `<span title="${esc(c.phrase)}">${esc(c.ch)}<small>${c.pinyin ? esc(c.pinyin) + " · " : ""}×${c.misses} · box ${c.box}</small></span>`).join("");
+  // Folded away by default; when open, only the most-missed cards (a long deck would be a wall of words)
+  const SHOW = 20, due = dueCards().length;
+  $("deckBox").classList.toggle("hidden", !all.length);
+  $("deckSummary").textContent = `📋 Your deck: ${all.length} card${all.length === 1 ? "" : "s"} · ${due} due today${all.length > SHOW ? ` · show the ${SHOW} most missed` : ""}`;
+  $("deckList").innerHTML = all.slice(0, SHOW).map(c => `<span title="${esc(c.phrase)}">${esc(c.ch)}<small>${c.pinyin ? esc(c.pinyin) + " · " : ""}×${c.misses} · box ${c.box}</small></span>`).join("")
+    + (all.length > SHOW ? `<span class="muted" style="align-self:center">+ ${all.length - SHOW} more</span>` : "");
 }
 function nextCard() {
   renderDeckList();
@@ -701,7 +715,7 @@ function nextCard() {
   const tokens = card.tokens || [...card.phrase];
   $("reviewBody").innerHTML = `
     <div class="card-word" style="${EN ? "font-size:34px;letter-spacing:0" : ""}">${tokens.map((c, i) => i === card.at ? `<mark>${esc(c)}</mark>` : esc(c)).join("")}</div>
-    <p class="muted center">Read the phrase aloud · ${reviewQueue.length} due · slipped ${card.misses}× · last time: ${card.last === "tone" ? "wrong tone" : card.last}</p>
+    <p class="muted center">Read the phrase aloud · ${reviewQueue.length} due · slipped ${card.misses}× · last time: ${card.last === "tone" ? "wrong tone" : card.last || "missed"}</p>
     <div class="bar center">
       <button class="primary" id="cardRec">🎤 Read it</button>
       ${EN ? "" : '<button id="cardHint">Show pinyin</button>'}
@@ -714,6 +728,15 @@ function nextCard() {
   $("cardHear").onclick = () => speak(card.phrase, 0.7);
   $("cardTypedBtn").onclick = () => gradeCard(card, $("cardTyped").value);
   if (MIC) recorder($("cardRec"), $("cardHeard"), "🎤 Read it", t => gradeCard(card, t)); else $("cardRec").disabled = true;
+}
+// After a card is checked: what the word around the practiced character means (offline dictionary, no AI)
+async function showCardMeaning(card) {
+  try {
+    const d = await api(`/api/define?text=${encodeURIComponent(card.phrase)}&i=${card.at ?? 0}`);
+    if (!d.entries.length || !$("cardMeaning")) return;
+    $("cardMeaning").innerHTML = `<b>${esc(d.word)}</b> <span class="py">${esc(d.entries[0].pinyin)}</span><ol>`
+      + d.entries.slice(0, 2).flatMap(e => e.meanings).filter(m => !/^(old |also written |erhua )?variant of|^surname|^see /i.test(m)).slice(0, 4).map(m => `<li>${esc(m)}</li>`).join("") + "</ol>";
+  } catch (e) { /* the meaning is a bonus; the card works without it */ }
 }
 async function gradeCard(card, heard) {
   if (!heard.trim()) return showError("Nothing was heard. Try again.");
@@ -730,7 +753,9 @@ async function gradeCard(card, heard) {
     $("cardResult").innerHTML = (right
       ? `<b class="result-ok">😻 ${esc(card.ch)}${sound} · see you in ${DAYS[c.box]} day${DAYS[c.box] === 1 ? "" : "s"}</b>`
       : `<b class="result-bad">🙀 Mao heard “${esc(r.heard || "nothing")}”${r.heard_pinyin ? " (" + esc(r.heard_pinyin) + ")" : ""}, should be ${esc(card.ch)}${sound}</b>`)
+      + `<div id="cardMeaning" class="card-meaning"></div>`
       + `<div class="bar center"><button class="primary" id="nextCardBtn">Next card →</button></div>`;
+    if (!EN) showCardMeaning(card);
     reviewQueue.shift();
     if (!right) reviewQueue.push(c);  // try again at the end of this session
     $("nextCardBtn").onclick = nextCard;

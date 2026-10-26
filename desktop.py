@@ -140,12 +140,13 @@ class Window(QMainWindow):
         self.reader = QWebEngineView()
         self.reader.setPage(ReaderPage(self.reader, self.from_reader))
         self.reader.loadFinished.connect(lambda ok: self.reader.page().runJavaScript("window.desktopMode && window.desktopMode()"))
-        self.reader.load(QUrl(reader_url))
+        self.reader.load(QUrl(f"{reader_url}?v={int(time.time())}"))  # new address each run: never an old saved copy
 
         split = QSplitter()
         split.addWidget(left)
         split.addWidget(self.reader)
         split.setSizes([850, 650])
+        left.hide()  # the coach starts at full width; it shows the browser when you open an article or a site
         self.setCentralWidget(split)
         self.web.load(QUrl(HOME))
 
