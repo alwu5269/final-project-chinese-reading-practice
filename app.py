@@ -3,6 +3,7 @@
 import json
 import multiprocessing
 import random
+import time
 from functools import lru_cache
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -217,6 +218,7 @@ def convert(body: ConvertIn):
 
 FIND_CANDIDATES = 12  # links opened per search
 OPEN_DEADLINE = 8     # seconds to wait for those pages; the rest are skipped this time
+OPEN_MAX_WAIT = 20    # ...unless fewer than 2 are ready (e.g. a previous search is still busy): then wait up to this long
 POOL = ThreadPoolExecutor(32)
 if MAIN_PROCESS:
     POOL.submit(feeds.warm)  # read every site's feed in the background at startup (no AI, no tokens)
@@ -233,6 +235,10 @@ def find(body: ProfileIn):
     links = feeds.candidates(kind, lang, body.exclude[-30:])[:FIND_CANDIDATES]
     jobs = [POOL.submit(verify, a, lang) for a in links]
     wait(jobs, timeout=OPEN_DEADLINE)  # pages still loading are skipped this time (and cached for next time)
+    give_up = time.time() + OPEN_MAX_WAIT - OPEN_DEADLINE
+    while (sum(j.done() and j.result() is not None for j in jobs) < 2 and not all(j.done() for j in jobs)
+           and time.time() < give_up):
+        time.sleep(0.25)
     checked = []
     for job in jobs:  # skip failures, late pages and duplicates (same title)
         a = job.result() if job.done() else None

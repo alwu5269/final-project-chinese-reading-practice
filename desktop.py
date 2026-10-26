@@ -25,6 +25,7 @@ from app import ROOT
 from app import app as web_app
 
 HOME = "https://zh.wikipedia.org/wiki/Wikipedia:首页"
+HOME_EN = "https://simple.wikipedia.org/wiki/Main_Page"
 PAGE_READER = (ROOT / "static" / "page_reader.js").read_text(encoding="utf-8")
 PREFIX = "MAOMAO:"
 
@@ -219,15 +220,21 @@ class Window(QMainWindow):
     def from_reader(self, msg: dict):
         kind = msg.get("type")
         if kind == "lang":
-            self.lang = "en" if msg.get("lang") == "en" else "zh"
+            new_lang = "en" if msg.get("lang") == "en" else "zh"
             new_script = msg.get("script", "") if msg.get("script") in ("s", "t", "") else ""
+            lang_changed, self.lang = new_lang != self.lang, new_lang
             changed, self.script = new_script != self.script, new_script
-            if changed and self.read_btn.isChecked():
+            if lang_changed:  # the open page is in the other language: stop reading it and open this language's start page
+                if self.read_btn.isChecked():
+                    self.read_btn.setChecked(False)
+                    self.read_btn.setText("🐾 Read on this page")
+                    self.page_js("__mm.stop()")
+                self.read_after_load = False
+                self.web.load(QUrl(HOME_EN if self.lang == "en" else HOME))
+            elif changed and self.read_btn.isChecked():
                 self.page_js(f"__mm.start({json.dumps(self.lang)}, {json.dumps(self.script)})")
             elif not self.read_btn.isChecked():
                 self.page_js(f"__mm.prime({json.dumps(self.lang)}, {json.dumps(self.script)})")
-            if self.lang == "en" and "zh.wikipedia.org" in self.web.url().toString():
-                self.web.load(QUrl("https://simple.wikipedia.org/wiki/Cat"))
         elif kind == "open" and str(msg.get("url", "")).startswith(("http://", "https://")):
             self.read_after_load = True
             self.web.load(QUrl(msg["url"]))

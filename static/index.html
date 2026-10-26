@@ -818,7 +818,8 @@ $("progressBtn").onclick = () => {
   const h = loadHistory().filter(a => a.lang === LANG);
   const unitName = T("characters", "words");
   if (!h.length) {
-    $("progressBody").innerHTML = `<div class="coach"><svg class="avatar"><use href="#cat"/></svg><div class="bubble"><p>No readings yet. Every passage you check gets added here.</p></div></div>`;
+    $("progressBody").innerHTML = `<div class="coach"><svg class="avatar"><use href="#cat"/></svg><div class="bubble"><p>No readings yet. Every passage you check gets added here.</p></div></div>
+      <div class="bar"><button id="importBtn">⬆ Import CSV</button><span class="muted">Bring back readings from a MaoMao CSV export</span></div>`;
   } else {
     const avg = (a, k) => Math.round(a.reduce((n, x) => n + (x[k] || 0), 0) / a.length);
     const first = h.slice(0, Math.min(5, Math.ceil(h.length / 2))), last = h.slice(-Math.min(5, Math.floor(h.length / 2)) || -1);
@@ -841,7 +842,7 @@ $("progressBtn").onclick = () => {
       <h3>Recent readings</h3>
       <table class="hist"><tr><th>When</th><th>Accuracy</th><th>Speed</th><th>Slips</th><th>Passage</th></tr>
         ${h.slice(-8).reverse().map(a => `<tr><td>${fmt(a.t)}</td><td>${a.accuracy}%</td><td>${a.cpm || "–"}</td><td>${a.errors}${a.pauses ? ` · ⏸${a.pauses}` : ""}</td><td>${esc(a.title || "—")}</td></tr>`).join("")}</table>
-      <div class="bar"><button id="exportBtn">⬇ Export CSV</button><span class="muted">Since ${date(h[0].t)} · saved only in this browser</span></div>`;
+      <div class="bar"><button id="exportBtn">⬇ Export CSV</button><button id="importBtn">⬆ Import CSV</button><span class="muted">Since ${date(h[0].t)} · saved only in this browser</span></div>`;
     $("exportBtn").onclick = () => {
       const rows = [["time", "language", "accuracy", "per_minute", "read", "errors", "tone_slips", "pauses", "passage", "missed"],
         ...h.map(a => [new Date(a.t).toISOString(), a.lang, a.accuracy, a.cpm ?? "", a.read, a.errors, a.tone_slips, a.pauses, `"${(a.title || "").replace(/"/g, "'")}"`, a.missed.join(" ")])];
@@ -849,7 +850,51 @@ $("progressBtn").onclick = () => {
       Object.assign(document.createElement("a"), { href: url, download: "maomao-progress.csv" }).click();
     };
   }
+  $("importBtn").onclick = () => $("importFile").click();
   card.scrollIntoView({ behavior: "smooth" });
+};
+
+// Import a CSV made by "Export CSV": readings are merged in; ones already saved (same time and language) are skipped
+function parseCsvLine(line) {
+  const out = []; let cur = "", quoted = false;
+  for (const ch of line) {
+    if (ch === '"') quoted = !quoted;
+    else if (ch === "," && !quoted) { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+function importProgress(text) {
+  const lines = text.replace(/^\ufeff/, "").split(/\r?\n/).filter(l => l.trim());
+  const head = parseCsvLine(lines.shift() || "");
+  const need = ["time", "language", "accuracy", "per_minute", "read", "errors", "tone_slips", "pauses", "passage", "missed"];
+  if (need.some((k, i) => head[i] !== k)) throw new Error("This doesn't look like a MaoMao progress CSV.");
+  const h = loadHistory(), seen = new Set(h.map(a => `${a.t}|${a.lang}`));
+  let added = 0, skipped = 0;
+  for (const line of lines) {
+    const [time, lang, acc, cpm, read, errors, tone, pauses, title, missed] = parseCsvLine(line);
+    const t = Date.parse(time);
+    if (!t || !["zh", "en"].includes(lang)) { skipped++; continue; }
+    if (seen.has(`${t}|${lang}`)) { skipped++; continue; }
+    seen.add(`${t}|${lang}`); added++;
+    h.push({ t, lang, accuracy: +acc || 0, cpm: cpm === "" ? null : +cpm, read: +read || 0, errors: +errors || 0,
+             tone_slips: +tone || 0, pauses: +pauses || 0, title: title || "", missed: (missed || "").split(" ").filter(Boolean) });
+  }
+  h.sort((a, b) => a.t - b.t);
+  localStorage.setItem("maoHistory", JSON.stringify(h.slice(-500)));
+  return { added, skipped };
+}
+const importInput = Object.assign(document.createElement("input"), { type: "file", accept: ".csv,text/csv", id: "importFile", hidden: true });
+document.body.append(importInput);
+importInput.onchange = async () => {
+  const file = importInput.files[0]; importInput.value = "";
+  if (!file) return;
+  try {
+    const { added, skipped } = importProgress(await file.text());
+    $("progressCard").classList.add("hidden"); $("progressBtn").onclick();  // redraw with the merged history
+    $("progressBody").insertAdjacentHTML("afterbegin", `<div class="flag">⬆ Imported ${added} reading${added === 1 ? "" : "s"}${skipped ? ` · skipped ${skipped} already saved` : ""}.</div>`);
+  } catch (e) { showError("Import failed: " + e.message); }
 };
 $("progressBody").addEventListener("mousemove", e => {
   const t = $("tooltip"), hit = e.target.closest(".hit");
