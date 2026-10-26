@@ -11,12 +11,13 @@ import socket
 import sys
 import threading
 import time
+from pathlib import Path
 
 import uvicorn
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEnginePermission, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLineEdit, QMainWindow, QPushButton,
+from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLineEdit, QMainWindow, QPushButton,
                                QSplitter, QVBoxLayout, QWidget)
 
 import script
@@ -56,7 +57,26 @@ def profile() -> QWebEngineProfile:
         _profile = QWebEngineProfile("maomao")
         _profile.setPersistentStoragePath(str(ROOT / "output" / "browser-profile"))
         _profile.setCachePath(str(ROOT / "output" / "browser-cache"))
+        _profile.downloadRequested.connect(save_download)
     return _profile
+
+
+def save_download(download) -> None:
+    """Files the coach makes (the progress CSV) get a Save dialog. Downloads started by websites in the
+    browser pane are refused, so no site can save files to your computer through the app."""
+    url = download.url().toString()
+    if not (url.startswith(("blob:http://127.0.0.1:", "data:")) or download.page() and
+            download.page().url().host() == "127.0.0.1"):
+        download.cancel()
+        return
+    default = Path.home() / "Downloads" / (download.downloadFileName() or "maomao-progress.csv")
+    path, _ = QFileDialog.getSaveFileName(None, "Save file", str(default))
+    if not path:
+        download.cancel()
+        return
+    download.setDownloadDirectory(str(Path(path).parent))
+    download.setDownloadFileName(Path(path).name)
+    download.accept()
 
 
 class BridgePage(QWebEnginePage):
