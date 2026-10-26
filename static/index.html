@@ -303,13 +303,22 @@ function showError(msg) {
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 // "Hear it": natural neural voice from the server; the browser's own voice is only a fallback
 let player = null;
+// Only one voice at a time: the browser's voice is used only if the neural audio really fails to load,
+// and whichever starts stops the other (the first play of a session can report a failure and still play).
 function speak(text, rate = 0.8) {
-  if (player) player.pause();
-  player = new Audio(`/api/tts?text=${encodeURIComponent(text)}&slow=${rate < 0.75}&lang=${LANG}`);
-  player.play().catch(() => {
+  if (player) { player.pause(); player.removeAttribute("src"); }
+  speechSynthesis.cancel();
+  const audio = player = new Audio(`/api/tts?text=${encodeURIComponent(text)}&slow=${rate < 0.75}&lang=${LANG}`);
+  let fellBack = false;
+  const fallback = () => {
+    if (fellBack || player !== audio) return;
+    fellBack = true; audio.pause(); audio.removeAttribute("src");
     const u = new SpeechSynthesisUtterance(text); u.lang = EN ? "en-US" : "zh-CN"; u.rate = rate;
-    speechSynthesis.cancel(); speechSynthesis.speak(u);
-  });
+    speechSynthesis.speak(u);
+  };
+  audio.onplaying = () => { if (fellBack) audio.pause(); else speechSynthesis.cancel(); };
+  audio.onerror = fallback;
+  audio.play().catch(e => { if (e.name === "NotSupportedError") fallback(); });  // AbortError etc.: the audio still plays
 }
 async function refreshUsage() {
   const u = await api("/api/usage");
@@ -591,8 +600,18 @@ function toWav(chunks, rate) {
 }
 function recorder(btn, heardEl, idleLabel, onDone) {
   let session = null;
+  // "Start over" (only while recording): drop what was recorded so far and keep listening
+  const again = document.createElement("button");
+  again.textContent = "↺ Start over"; again.className = "hidden"; again.title = "Throw away this recording and start again";
+  btn.after(again);
+  again.onclick = () => {
+    if (!session) return;
+    session.chunks.length = 0; session.t0 = Date.now();
+    heardEl.textContent = "👂 Starting over… read from the beginning, then press stop.";
+  };
   btn.onclick = async () => {
     if (session) {  // stop
+      again.classList.add("hidden");
       const { stream, ctx, node, chunks, t0 } = session; session = null;
       node.disconnect(); stream.getTracks().forEach(t => t.stop());
       const seconds = (Date.now() - t0) / 1000, wav = toWav(chunks, ctx.sampleRate); ctx.close();
@@ -614,7 +633,7 @@ function recorder(btn, heardEl, idleLabel, onDone) {
       node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
       src.connect(node); node.connect(ctx.destination);
       session = { stream, ctx, node, chunks, t0: Date.now() };
-      btn.textContent = "■ Stop and check"; btn.classList.add("rec");
+      btn.textContent = "■ Stop and check"; btn.classList.add("rec"); again.classList.remove("hidden");
       heardEl.textContent = "👂 Listening… read, then press stop.";
     } catch (e) { showError("Microphone blocked: " + e.message); }
   };
